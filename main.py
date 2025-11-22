@@ -1,99 +1,90 @@
-# main.py
-
 """
-KILL SWITCH SYSTEM - CENTRAL ORCHESTRATOR
-Flow: Phase 1 (Init) -> Phase 2 (Auth) -> Phase 3 (Monitor Loop)
+KOTAK KILL SWITCH - ORCHESTRATOR
+Linear Init -> Auth -> Initial Check -> (Pending: Threaded Services)
 """
 
 import sys
-import os
+import threading
 import time
-import argparse
+from pathlib import Path
 
 # --- PHASE 1: INIT ---
-from utils.initialize import initialize
+from utils.initialize import initialize_system
 
-# --- PHASE 2: AUTH ---
-from kotak_api.client_login import authenticate
+# --- PHASE 2: AUTHENTICATION ---
+from kotak_api.client_login import authenticate_client
 
-# --- PHASE 3: DATA FETCH ---
-from kotak_api.positions import fetch_positions
-from kotak_api.orders import fetch_orders, check_sl_hit
-from kotak_api.quotes import fetch_ltp
+# --- PHASE 3: PRE-FLIGHT CHECK (Data Sync) ---
+from services.initial_check import run_initial_system_check
 
-# --- PHASE 4: TRIGGER LOGIC ---
-from trigger_logic.mtm import calculate_mtm
-from trigger_logic.kill_switch import check_trigger, execute_kill_switch
-
-
-def run_monitor_cycle(data):
-    """Single monitoring cycle - fetch data, check trigger"""
-    data = fetch_positions(data)
-    data = fetch_orders(data)
-    data = check_sl_hit(data)
-    data = fetch_ltp(data)
-    data = calculate_mtm(data)
-    data = check_trigger(data)
-    return data
+# --- PHASE 4: SERVICES (Thread Targets) - PENDING ---
+# from services.data_service import run_data_service
+# from services.risk_service import run_risk_service
+# from services.kill_switch_service import run_kill_switch_service
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', type=str, default='daemon', choices=['single_run', 'daemon'])
-    args = parser.parse_args()
-    
-    project_root = os.path.dirname(os.path.abspath(__file__))
+# ====================  1. INITIALIZATION & AUTH ====================
 
-    # =========================================================
-    # PHASE 1: INITIALIZE
-    # =========================================================
-    data = initialize(project_root)
-    log = data['logger']
-    cfg = data['config']
-    
-    log.info("=" * 50)
-    log.info(f"KILL SWITCH SYSTEM ({args.mode.upper()})")
-    log.info(f"MTM Limit: {cfg['kill_switch']['mtm_limit']}")
-    log.info(f"Dry Run: {cfg['kill_switch']['dry_run']}")
-    log.info("=" * 50)
+# Initialize Universal Dict (Config, State, Logger)
+universal_data = initialize_system()
+log = universal_data['logger'].info
 
-    # =========================================================
-    # PHASE 2: AUTHENTICATE
-    # =========================================================
-    data = authenticate(data)
+log("=== SYSTEM STARTUP ===")
 
-    # =========================================================
-    # PHASE 3: SINGLE RUN OR DAEMON LOOP
-    # =========================================================
-    if args.mode == 'single_run':
-        data = run_monitor_cycle(data)
-        data = execute_kill_switch(data)
-        log.info("Single run complete")
-        return
-
-    # DAEMON MODE
-    log.info("Entering monitoring loop...")
-    poll_interval = cfg['monitoring']['poll_interval_seconds']
-    
-    while not data['state']['kill_switch_triggered']:
-        try:
-            data = run_monitor_cycle(data)
-            
-            if data['state']['kill_switch_triggered']:
-                data = execute_kill_switch(data)
-                break
-            
-            time.sleep(poll_interval)
-            
-        except KeyboardInterrupt:
-            log.info("Stopped by user")
-            break
-        except Exception as e:
-            log.error(f"Cycle error: {e}")
-            time.sleep(poll_interval)
-    
-    log.info("Kill Switch System Stopped")
+# Authenticate (Modifies universal_data['client'])
+authenticate_client(universal_data)
 
 
-if __name__ == "__main__":
-    main()
+# ====================  2. INITIAL SYSTEM CHECK ====================
+log(">>> Running Pre-flight Checks...")
+
+# Single linear pass: Syncs Positions, Orders, and Quotes to 'state'
+run_initial_system_check(universal_data)
+
+# --- DEBUG: Print State to verify Phase 2 ---
+import json
+print("\n[DEBUG] Current State Data:")
+# Helper to serialize set/objects if needed, though basic types used here
+print(json.dumps(universal_data['state']['positions'], indent=2, default=str))
+print(f"Total Orders: {len(universal_data['state']['orders'])}")
+print(f"LTPs: {universal_data['state']['quotes']}")
+
+
+# ====================  3. START SERVICE THREADS (PENDING) ====================
+# log(">>> Starting Services...")
+
+# Thread 1: Data Service (Polls API: Positions, Orders, Quotes)
+# data_thread = threading.Thread(
+#     target=run_data_service, 
+#     args=(universal_data,), 
+#     name="DataThread", 
+#     daemon=True
+# )
+# data_thread.start()
+
+# Thread 2: Risk Service (Calcs MTM, Checks SL -> Sets 'trigger_signal')
+# risk_thread = threading.Thread(
+#     target=run_risk_service, 
+#     args=(universal_data,), 
+#     name="RiskThread", 
+#     daemon=True
+# )
+# risk_thread.start()
+
+# Thread 3: Kill Switch Service (Browser Automation -> Waits for 'trigger_signal')
+# kill_thread = threading.Thread(
+#     target=run_kill_switch_service, 
+#     args=(universal_data,), 
+#     name="KillSwitchThread", 
+#     daemon=True
+# )
+# kill_thread.start()
+
+
+# ====================  4. MAIN LOOP (PENDING) ====================
+# Keep alive until system_active is set to False (by Kill Switch after execution)
+
+# while universal_data['system_active']:
+#     time.sleep(1)
+
+log("=== SYSTEM SHUTDOWN (TEST COMPLETE) ===")

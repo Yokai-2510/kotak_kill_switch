@@ -35,10 +35,10 @@ Thumbs.db
 *.tmp
 
 #######################################
-# Sensitive Config / Credentials
+# Sensitive Config / Credentials (DO NOT PUSH)
 #######################################
-# source/credentials.json
-# source/config.json
+source/credentials.json
+source/config.json
 
 #######################################
 # Web Automation / Selenium Junk
@@ -47,7 +47,7 @@ Thumbs.db
 *.cookies
 
 #######################################
-# Images (optional — remove if needed)
+# Images (optional)
 #######################################
 *.png
 *.jpg
