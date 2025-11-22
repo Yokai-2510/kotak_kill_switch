@@ -1,0 +1,3 @@
+- setup envs
+- connect to broker
+- 
