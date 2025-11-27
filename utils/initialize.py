@@ -1,59 +1,64 @@
 import json
 import sys
+import threading
 from pathlib import Path
 from utils.logger import setup_logger
 
 def load_json_file(filepath):
-    """Helper to load JSON with basic error checking."""
     path = Path(filepath)
     if not path.exists():
         print(f"CRITICAL: Configuration file missing at {path}")
         sys.exit(1)
-    
     with open(path, 'r') as f:
         return json.load(f)
 
 def initialize_system():
-    """
-    Bootstraps the application state.
-    1. Setup Logger
-    2. Load Config & Credentials
-    3. Initialize Empty State
-    """
     logger = setup_logger()
-    
-    # Resolve paths relative to project root
-    # Assumes utils/initialize.py -> parent = utils -> parent = Project_Root
     root_dir = Path(__file__).parent.parent
-    config_path = root_dir / "source" / "config.json"
-    creds_path = root_dir / "source" / "credentials.json"
+    config = load_json_file(root_dir / "source" / "config.json")
+    creds = load_json_file(root_dir / "source" / "credentials.json")
     
-    logger.info("Initializing system...", tags=["INIT"])
-    
-    config = load_json_file(config_path)
-    creds = load_json_file(creds_path)
-    
-    # Universal Data Structure
+    mtm_limit = -abs(float(config['kill_switch']['mtm_limit']))
+
     universal_data = {
-        'config': config,
-        'creds': creds,
-        'logger': logger,
-        'client': None,          # Populated by authentication
-        'system_active': True,   # Controls the main loop
-        
-        # Dynamic State
-        'state': {
-            'mtm': 0.0,
-            'sl_hit': False,
-            'positions': [],
-            'orders': [],
-            'quotes': {},
-            'kill_switch_triggered': False
+        # [1] RESOURCES
+        "sys": {
+            "config":   config,
+            "creds":    creds,
+            "log":      logger,
+            "api":      None,
+            "lock":     threading.Lock()
         },
-        
-        # Threading signals
-        'trigger_signal': False
+
+        # [2] MARKET DATA (Updated Structure)
+        "market": {
+            "positions": [],
+            "orders":    [],
+            "quotes":    {},
+            
+            # NEW: Raw API Response Storage
+            "raw": {
+                "positions": None,
+                "orders":    None,
+                "quotes":    None
+            }
+        },
+
+        # [3] RISK METRICS
+        "risk": {
+            "mtm_current":   0.0,
+            "mtm_limit":     mtm_limit,
+            "mtm_distance":  0.0,
+            "sl_hit_status": False
+        },
+
+        # [4] SIGNALS
+        "signals": {
+            "system_active": True,
+            "trigger_kill":  False,
+            "kill_executed": False
+        }
     }
     
-    logger.info(f"Configuration loaded. Mode: {config['kill_switch']['execution_mode']}", tags=["INIT"])
+    logger.info(f"System Initialized. MTM Limit: {mtm_limit}", tags=["INIT"])
     return universal_data

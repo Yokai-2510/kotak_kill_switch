@@ -1,0 +1,225 @@
+{
+  "timestamp": "21:52:28",
+  "risk": {
+    "mtm_current": 0.0,
+    "mtm_limit": -200.0,
+    "mtm_distance": 200.0,
+    "sl_hit_status": false
+  },
+  "signals": {
+    "system_active": true,
+    "trigger_kill": false,
+    "kill_executed": false
+  },
+  "market": {
+    "positions": [],
+    "orders": [],
+    "quotes": {},
+    "raw": {
+      "positions": {
+        "stCode": 5203,
+        "errMsg": "No Data",
+        "desc": "data not found",
+        "stat": "Not_Ok"
+      },
+      "orders": {
+        "stCode": 5203,
+        "errMsg": "No Data",
+        "desc": "data not found",
+        "stat": "Not_Ok"
+      },
+      "quotes": null
+    }
+  },
+  "config": {
+    "kill_switch": {
+      "enabled": true,
+      "dry_run": false,
+      "mtm_limit": 200,
+      "trigger_on_sl_hit": true,
+      "execution_mode": "kill_only",
+      "auto_square_off": true,
+      "test_mode_equity": true
+    },
+    "monitoring": {
+      "poll_interval_seconds": 2
+    },
+    "gmail": {
+      "sender_filter": "noreply@nmail.kotaksecurities.com",
+      "otp_subject": "OTP",
+      "timeout_seconds": 120
+    },
+    "logging": {
+      "level": "INFO",
+      "file": "logs/kill_switch.log",
+      "max_size_mb": 10,
+      "backup_count": 5
+    },
+    "web_automation": {
+      "login_url": "https://neo.kotaksecurities.com/Login",
+      "browser": {
+        "headless": false,
+        "viewport": {
+          "width": 1366,
+          "height": 768
+        },
+        "args": [
+          "--disable-blink-features=AutomationControlled",
+          "--disable-web-security"
+        ]
+      },
+      "flow_steps": [
+        {
+          "step": "A_enter_mobile",
+          "type": "input",
+          "cred_key": "mobile_number",
+          "coords": null,
+          "keys": [
+            "Enter"
+          ],
+          "wait": 1.5
+        },
+        {
+          "step": "B_enter_password",
+          "type": "input",
+          "cred_key": "kotak_neo_login_password",
+          "coords": null,
+          "keys": null,
+          "wait": 0.3
+        },
+        {
+          "step": "C_trigger_otp",
+          "type": "keys",
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Enter"
+          ],
+          "wait": 2.0
+        },
+        {
+          "step": "D_process_otp",
+          "type": "otp",
+          "cred_key": null,
+          "coords": null,
+          "keys": null,
+          "wait": 1.0
+        },
+        {
+          "step": "E_dismiss_popup",
+          "type": "keys",
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "wait": 1.0
+        },
+        {
+          "step": "F_open_avatar_menu",
+          "type": "click",
+          "cred_key": null,
+          "coords": {
+            "x": 1285,
+            "y": 27
+          },
+          "keys": null,
+          "wait": 1.2
+        },
+        {
+          "step": "G_open_account_details",
+          "type": "keys",
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "wait": 1.2
+        },
+        {
+          "step": "H_focus_account_canvas",
+          "type": "click",
+          "cred_key": null,
+          "coords": {
+            "x": 499,
+            "y": 224
+          },
+          "keys": null,
+          "wait": 0.5
+        },
+        {
+          "step": "I_scroll_to_manage",
+          "type": "scroll",
+          "cred_key": null,
+          "coords": null,
+          "keys": null,
+          "repeats": 10,
+          "wait": 0.5
+        },
+        {
+          "step": "J_click_manage_killswitch",
+          "type": "click",
+          "cred_key": null,
+          "coords": {
+            "x": 480,
+            "y": 225
+          },
+          "keys": null,
+          "wait": 1.0
+        },
+        {
+          "step": "K_widget_disable_all",
+          "type": "keys",
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "wait": 1.0
+        },
+        {
+          "step": "L_widget_open_disable_segments",
+          "type": "keys",
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "wait": 1.0
+        },
+        {
+          "step": "M_focus_popup_center",
+          "type": "click",
+          "cred_key": null,
+          "coords": {
+            "x": 680,
+            "y": 440
+          },
+          "keys": null,
+          "wait": 0.6
+        },
+        {
+          "step": "N_popup_cancel",
+          "type": "keys",
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "wait": 1.0
+        }
+      ]
+    }
+  }
+}

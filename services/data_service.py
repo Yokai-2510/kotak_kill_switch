@@ -5,30 +5,32 @@ from kotak_api.quotes import sync_ltp
 
 def run_data_service(universal_data):
     """
-    Background thread that continuously fetches Positions, Orders, and Quotes.
-    Stops when universal_data['system_active'] becomes False.
+    Thread: Polls API for Positions, Orders, and Quotes.
     """
-    log = universal_data['logger']
-    config = universal_data['config']['monitoring']
-    poll_interval = config['poll_interval_seconds']
+    log = universal_data['sys']['log']
+    poll_interval = universal_data['sys']['config']['monitoring']['poll_interval_seconds']
     
     log.info("Data Service Started.", tags=["SVC", "DATA"])
     
-    while universal_data['system_active']:
+    while True:
+        # Check active status safely
+        if not universal_data['signals']['system_active']:
+            break
+
         try:
-            # 1. Fetch Positions & Orders (Base Data)
             sync_positions(universal_data)
             sync_orders(universal_data)
             
-            # 2. Fetch Quotes (Dependent on Positions)
-            # Only fetch if we have positions to quote
-            if universal_data['state']['positions']:
+            # Check if we need quotes
+            with universal_data['sys']['lock']:
+                has_positions = bool(universal_data['market']['positions'])
+            
+            if has_positions:
                 sync_ltp(universal_data)
                 
         except Exception as e:
             log.error(f"Data Loop Error: {e}", tags=["SVC", "DATA"])
             
-        # Wait for next tick
         time.sleep(poll_interval)
     
     log.info("Data Service Stopped.", tags=["SVC", "DATA"])

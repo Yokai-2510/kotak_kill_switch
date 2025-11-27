@@ -78,15 +78,15 @@ Hence, the Kill Switch acts as a **final safety brake**, automatically locking t
 
 ## 5. **Kill Switch Flow (Summary Table)**
 
-| Step | Action                       | Source              | Trigger Condition                | Result                    |
-| ---- | ---------------------------- | ------------------- | -------------------------------- | ------------------------- |
-| 1    | Fetch all positions          | Kotak Neo API       | Periodic (e.g., every 2 seconds) | Latest position data      |
-| 2    | Compute MTM                  | Custom logic        | After fetching positions         | Current total profit/loss |
-| 3    | Check SL hit                 | Orders API          | Real-time                        | Detect SL execution       |
-| 4    | Compare MTM vs threshold     | GUI input           | Continuous                       | Determine breach          |
-| 5    | Activate Kill Switch         | Selenium/Playwright | MTM ≥ limit + SL hit             | Block trading             |
-| 6    | Logout + Optional hedge exit | API                 | Immediately after kill           | Ensure lockout            |
-| 7    | Apply to other accounts      | Internal logic      | After main account kill          | Synchronize kill          |
+| Step | Action                       | Source         | Trigger Condition                | Result                    |
+| ---- | ---------------------------- | -------------- | -------------------------------- | ------------------------- |
+| 1    | Fetch all positions          | Kotak Neo API  | Periodic (e.g., every 2 seconds) | Latest position data      |
+| 2    | Compute MTM                  | Custom logic   | After fetching positions         | Current total profit/loss |
+| 3    | Check SL hit                 | Orders API     | Real-time                        | Detect SL execution       |
+| 4    | Compare MTM vs threshold     | GUI input      | Continuous                       | Determine breach          |
+| 5    | Activate Kill Switch         | Playwright     | MTM ≥ limit + SL hit             | Block trading             |
+| 6    | Logout + Optional hedge exit | API            | Immediately after kill           | Ensure lockout            |
+| 7    | Apply to other accounts      | Internal logic | After main account kill          | Synchronize kill          |
 
 ---
 

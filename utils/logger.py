@@ -1,106 +1,66 @@
-"""
-Tagged logging system with console and file handlers.
-Supports INFO, WARNING, ERROR, CRITICAL levels with optional exception tracebacks.
-"""
-
 import logging
 import os
-from typing import List, Optional
-
+import sys
 
 class TaggedFormatter(logging.Formatter):
-    """Custom formatter that prepends tags to log messages."""
-    
-    def format(self, record: logging.LogRecord) -> str:
-        log_message = super().format(record)
-        
-        # Add tags if present in record
+    """Custom formatter that adds [TAGS] to the log output."""
+    def format(self, record):
+        msg = super().format(record)
         if hasattr(record, 'tags') and record.tags:
-            tags_str = f"[{','.join(record.tags)}] "
-            parts = log_message.split(" - ", 1)
+            tag_str = f"[{','.join(record.tags)}]"
+            # Insert tags after timestamp/level
+            parts = msg.split(' - ', 1)
             if len(parts) > 1:
-                log_message = f"{parts[0]} - {tags_str}{parts[1]}"
-        
-        return log_message
-
+                return f"{parts[0]} - {tag_str} {parts[1]}"
+            return f"{tag_str} {msg}"
+        return msg
 
 class TaggedLogger:
-    """Logger wrapper that supports tags and proper exception handling."""
-    
-    def __init__(self, logger: logging.Logger):
-        self.logger = logger
-    
-    def _log(self, level: int, msg: str, tags: Optional[List[str]] = None, **kwargs):
-        """Internal helper that passes kwargs including exc_info to logger."""
-        extra_data = {'tags': tags if tags else []}
-        self.logger.log(level, msg, extra=extra_data, **kwargs)
-    
-    def info(self, msg: str, tags: Optional[List[str]] = None):
-        """Log INFO level message."""
-        self._log(logging.INFO, msg, tags)
-    
-    def warning(self, msg: str, tags: Optional[List[str]] = None):
-        """Log WARNING level message."""
-        self._log(logging.WARNING, msg, tags)
-    
-    def error(self, msg: str, tags: Optional[List[str]] = None, exc_info: bool = False):
-        """Log ERROR level message with optional exception traceback."""
-        self._log(logging.ERROR, msg, tags, exc_info=exc_info)
-    
-    def critical(self, msg: str, tags: Optional[List[str]] = None, exc_info: bool = False):
-        """Log CRITICAL level message with optional exception traceback."""
-        self._log(logging.CRITICAL, msg, tags, exc_info=exc_info)
+    """Wrapper for standard logger to support tags."""
+    def __init__(self, logger):
+        self._logger = logger
 
+    def info(self, msg, tags=None):
+        self._logger.info(msg, extra={'tags': tags or []})
 
-_logger_instance = None  # Singleton instance
+    def warning(self, msg, tags=None):
+        self._logger.warning(msg, extra={'tags': tags or []})
 
+    def error(self, msg, tags=None, exc_info=False):
+        self._logger.error(msg, extra={'tags': tags or []}, exc_info=exc_info)
 
-def setup_logger() -> TaggedLogger:
-    """Get or create singleton logger instance with console and file handlers."""
-    
-    global _logger_instance
-    
-    if _logger_instance:
-        return _logger_instance
-    
-    # Create base logger
-    logger = logging.getLogger("KillSwitch_System")
+    def critical(self, msg, tags=None, exc_info=True):
+        self._logger.critical(msg, extra={'tags': tags or []}, exc_info=exc_info)
+
+def setup_logger():
+    """
+    Sets up the logging directory and handlers.
+    Returns a TaggedLogger instance.
+    """
+    # 1. Define Log Paths
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    log_dir = os.path.join(base_dir, 'logs')
+    log_file = os.path.join(log_dir, 'kill_switch.log')
+
+    # 2. Create Directory
+    os.makedirs(log_dir, exist_ok=True)
+
+    # 3. Setup Handlers
+    logger = logging.getLogger("KotakKillSwitch")
     logger.setLevel(logging.INFO)
-    
-    # Clear existing handlers
-    if logger.hasHandlers():
-        logger.handlers.clear()
-    
-    # Create formatter
-    formatter = TaggedFormatter(
-        "%(asctime)s [%(levelname)-8s] - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    
-    # Add console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    
-    # Add file handler
-    # Resolves to Project_Root/logs/kill_switch.log
-    try:
-        log_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            'logs'
-        )
-        os.makedirs(log_dir, exist_ok=True)
-        
-        file_handler = logging.FileHandler(
-            os.path.join(log_dir, "kill_switch.log"),
-            mode='a'
-        )
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-    except Exception as e:
-        print(f"WARNING: Could not set up file logging: {e}")
-    
-    # Create and cache singleton
-    _logger_instance = TaggedLogger(logger)
-    
-    return _logger_instance
+    logger.handlers.clear()
+
+    # Formatter
+    fmt = TaggedFormatter("%(asctime)s [%(levelname)s] - %(message)s", datefmt="%H:%M:%S")
+
+    # File Handler
+    fh = logging.FileHandler(log_file)
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+
+    # Console Handler
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setFormatter(fmt)
+    logger.addHandler(ch)
+
+    return TaggedLogger(logger)

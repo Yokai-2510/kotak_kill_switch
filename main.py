@@ -1,12 +1,11 @@
 """
 KOTAK KILL SWITCH - ORCHESTRATOR
-Linear Init -> Auth -> Initial Check -> (Pending: Threaded Services)
+Linear Init -> Auth -> Initial Check -> Threaded Services
 """
 
 import sys
 import threading
 import time
-from pathlib import Path
 
 # --- PHASE 1: INIT ---
 from utils.initialize import initialize_system
@@ -14,77 +13,86 @@ from utils.initialize import initialize_system
 # --- PHASE 2: AUTHENTICATION ---
 from kotak_api.client_login import authenticate_client
 
-# --- PHASE 3: PRE-FLIGHT CHECK (Data Sync) ---
+# --- PHASE 3: PRE-FLIGHT CHECK ---
 from services.initial_check import run_initial_system_check
 
-# --- PHASE 4: SERVICES (Thread Targets) - PENDING ---
-# from services.data_service import run_data_service
-# from services.risk_service import run_risk_service
-# from services.kill_switch_service import run_kill_switch_service
+# --- PHASE 4: SERVICES ---
+from services.data_service import run_data_service
+from services.risk_service import run_risk_service
+from services.kill_switch_service import run_kill_switch_service
+from services.config_watcher import run_config_watcher # <--- NEW IMPORT
+
+# --- PHASE 5: TESTING ---
+from tests.injector import run_debug_service as run_state_injector 
 
 
-# ====================  1. INITIALIZATION & AUTH ====================
+def main():
 
-# Initialize Universal Dict (Config, State, Logger)
-universal_data = initialize_system()
-log = universal_data['logger'].info
+    # ====================  1. INITIALIZATION & AUTH ====================
+    
+    # Initialize Universal Dict
+    universal_data = initialize_system()
+    log = universal_data['sys']['log'].info
 
-log("=== SYSTEM STARTUP ===")
-
-# Authenticate (Modifies universal_data['client'])
-authenticate_client(universal_data)
-
-
-# ====================  2. INITIAL SYSTEM CHECK ====================
-log(">>> Running Pre-flight Checks...")
-
-# Single linear pass: Syncs Positions, Orders, and Quotes to 'state'
-run_initial_system_check(universal_data)
-
-# --- DEBUG: Print State to verify Phase 2 ---
-import json
-print("\n[DEBUG] Current State Data:")
-# Helper to serialize set/objects if needed, though basic types used here
-print(json.dumps(universal_data['state']['positions'], indent=2, default=str))
-print(f"Total Orders: {len(universal_data['state']['orders'])}")
-print(f"LTPs: {universal_data['state']['quotes']}")
+    log("=== SYSTEM STARTUP ===", tags=["MAIN"])
+    
+    # Authenticate
+    authenticate_client(universal_data)
 
 
-# ====================  3. START SERVICE THREADS (PENDING) ====================
-# log(">>> Starting Services...")
-
-# Thread 1: Data Service (Polls API: Positions, Orders, Quotes)
-# data_thread = threading.Thread(
-#     target=run_data_service, 
-#     args=(universal_data,), 
-#     name="DataThread", 
-#     daemon=True
-# )
-# data_thread.start()
-
-# Thread 2: Risk Service (Calcs MTM, Checks SL -> Sets 'trigger_signal')
-# risk_thread = threading.Thread(
-#     target=run_risk_service, 
-#     args=(universal_data,), 
-#     name="RiskThread", 
-#     daemon=True
-# )
-# risk_thread.start()
-
-# Thread 3: Kill Switch Service (Browser Automation -> Waits for 'trigger_signal')
-# kill_thread = threading.Thread(
-#     target=run_kill_switch_service, 
-#     args=(universal_data,), 
-#     name="KillSwitchThread", 
-#     daemon=True
-# )
-# kill_thread.start()
+    # ====================  2. INITIAL SYSTEM CHECK ====================
+    
+    log(">>> Running Pre-flight Checks...", tags=["MAIN"])
+    run_initial_system_check(universal_data)
+    
+    # Debug Log for Initial State
+    with universal_data['sys']['lock']:
+        current_mtm = universal_data['risk']['mtm_current']
+        sl_status = universal_data['risk']['sl_hit_status']
+        
+    log(f"Pre-flight State -> MTM: {current_mtm} | SL Hit: {sl_status}", tags=["DEBUG"])
 
 
-# ====================  4. MAIN LOOP (PENDING) ====================
-# Keep alive until system_active is set to False (by Kill Switch after execution)
+    # ====================  3. START SERVICE THREADS ====================
+    
+    log(">>> Starting Services...", tags=["MAIN"])
 
-# while universal_data['system_active']:
-#     time.sleep(1)
+    # Thread 1: Data Service
+    data_thread = threading.Thread(target=run_data_service, args=(universal_data,), name="DataThread", daemon=True)
+    data_thread.start()
 
-log("=== SYSTEM SHUTDOWN (TEST COMPLETE) ===")
+    # Thread 2: Risk Service
+    risk_thread = threading.Thread(target=run_risk_service, args=(universal_data,), name="RiskThread", daemon=True)
+    risk_thread.start()
+
+    # Thread 3: Kill Switch Service
+    kill_thread = threading.Thread(target=run_kill_switch_service, args=(universal_data,), name="KillSwitchThread", daemon=True)
+    kill_thread.start()
+
+    # Thread 4: Config Watcher (Hot Reload)
+    config_thread = threading.Thread(target=run_config_watcher, args=(universal_data,), name="ConfigThread", daemon=True)
+    config_thread.start()
+
+    # Thread 5: Injector Service (Debug)
+    injector_thread = threading.Thread(target=run_state_injector, args=(universal_data,), name="InjectorThread", daemon=True)
+    injector_thread.start()
+
+
+    # ====================  4. MAIN LOOP ====================
+    
+    log("System Active. Monitoring...", tags=["MAIN"])
+    
+    try:
+        while universal_data['signals']['system_active']:
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        log("User Interrupted. Stopping...", tags=["MAIN"])
+        with universal_data['sys']['lock']:
+            universal_data['signals']['system_active'] = False
+
+    log("=== SYSTEM SHUTDOWN ===", tags=["MAIN"])
+
+
+if __name__ == "__main__":
+    main()

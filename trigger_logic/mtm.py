@@ -1,13 +1,15 @@
-# mtm.py
 def calculate_mtm(universal_data):
     """
-    Calculates Mark-to-Market (MTM) PnL based on synced positions and quotes.
-    Formula: (SellAmt - BuyAmt) + (NetQty * LTP * PriceFactor * Multiplier)
-    Updates: universal_data['state']['mtm']
+    Calculates MTM PnL based on synced positions and quotes.
+    Updates: ['risk']['mtm_current'] and ['risk']['mtm_distance']
     """
-    log = universal_data['logger']
-    positions = universal_data['state'].get('positions', [])
-    quotes = universal_data['state'].get('quotes', {})
+    log = universal_data['sys']['log']
+    
+    # 1. READ DATA (Thread-Safe)
+    with universal_data['sys']['lock']:
+        positions = universal_data['market']['positions']
+        quotes = universal_data['market']['quotes']
+        mtm_limit = universal_data['risk']['mtm_limit']
     
     total_pnl = 0.0
     
@@ -15,36 +17,26 @@ def calculate_mtm(universal_data):
         for pos in positions:
             token = pos['token']
             
-            # If we don't have an LTP, we cannot calculate accurate MTM for this leg.
-            # We log a warning and skip (or assume 0 impact if closed).
-            if token not in quotes:
-                # If net qty is 0, LTP doesn't matter for Realized PnL part
-                if pos['net_qty'] != 0:
-                    # log.warning(f"Missing LTP for {pos['symbol']} (Tok: {token}). MTM may be inaccurate.", tags=["MTM"])
-                    pass
-                ltp = 0.0
-            else:
-                ltp = quotes[token]
+            # Fetch LTP or default to 0.0
+            ltp = quotes.get(token, 0.0)
             
-            # Extract pre-calculated fields from positions.py
+            # Calculation Params
             net_qty = pos['net_qty']
             total_buy_amt = pos['total_buy_amt']
             total_sell_amt = pos['total_sell_amt']
             multiplier = pos['multiplier']
-            price_factor = pos['price_factor'] # (genNum/genDen * prcNum/prcDen)
+            price_factor = pos['price_factor']
             
-            # Kotak Formula:
-            # PnL = (Total Sell Amt - Total Buy Amt) + (Net Qty * LTP * multiplier * price_factor)
-            
+            # PnL Formula
             realized_part = total_sell_amt - total_buy_amt
             unrealized_part = net_qty * ltp * multiplier * price_factor
             
-            leg_pnl = realized_part + unrealized_part
-            total_pnl += leg_pnl
+            total_pnl += (realized_part + unrealized_part)
             
-        # Update State
-        universal_data['state']['mtm'] = round(total_pnl, 2)
-        # log.info(f"MTM Calculated: {total_pnl}", tags=["MTM"])
+        # 2. WRITE RISK METRICS (Thread-Safe)
+        with universal_data['sys']['lock']:
+            universal_data['risk']['mtm_current'] = round(total_pnl, 2)
+            universal_data['risk']['mtm_distance'] = round(total_pnl - mtm_limit, 2)
 
     except Exception as e:
-        log.error(f"Error calculating MTM: {e}", tags=["MTM"], exc_info=True)
+        log.error(f"Error calculating MTM: {e}", tags=["MTM"])
