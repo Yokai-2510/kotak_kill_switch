@@ -20,7 +20,7 @@ from services.initial_check import run_initial_system_check
 from services.data_service import run_data_service
 from services.risk_service import run_risk_service
 from services.kill_switch_service import run_kill_switch_service
-from services.config_watcher import run_config_watcher # <--- NEW IMPORT
+from services.config_watcher import run_config_watcher 
 
 # --- PHASE 5: TESTING ---
 from tests.injector import run_debug_service as run_state_injector 

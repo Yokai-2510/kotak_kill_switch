@@ -19,7 +19,7 @@ def sync_ltp(universal_data):
 
         if not quote_tokens: return
 
-        response = client.quotes(instrument_tokens=quote_tokens, quote_type='LTP')
+        response = client.quotes(instrument_tokens=quote_tokens, quote_type='ltp')
 
         updated_quotes = {}
         data_list = []

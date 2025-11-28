@@ -38,7 +38,7 @@ Thumbs.db
 # Sensitive Config / Credentials (DO NOT PUSH)
 #######################################
 source/credentials.json
-source/config.json
+
 
 #######################################
 # Web Automation / Selenium Junk

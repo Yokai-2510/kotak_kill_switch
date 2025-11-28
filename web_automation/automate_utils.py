@@ -7,6 +7,7 @@ from threading import Thread
 def _imap_worker(creds, config, result_bucket):
     """
     Internal worker: Connects to Gmail IMAP and listens for Kotak OTP.
+    Includes robust multipart handling to prevent decoding errors.
     """
     try:
         email_user = creds['email']
@@ -41,23 +42,41 @@ def _imap_worker(creds, config, result_bucket):
                 typ, msg_data = mail.fetch(latest, "(RFC822)")
                 msg = email.message_from_bytes(msg_data[0][1])
                 
-                body = msg.get_payload(decode=True).decode(errors="ignore")
+                body = ""
+                
+                # --- ROBUST BODY EXTRACTION ---
                 if msg.is_multipart():
                     for part in msg.walk():
                         if part.get_content_type() == "text/plain":
-                            body = part.get_payload(decode=True).decode(errors="ignore")
-                            break
+                            payload = part.get_payload(decode=True)
+                            if payload:
+                                body = payload.decode(errors="ignore")
+                                break
+                    # Fallback if no text/plain found in multipart
+                    if not body:
+                        try:
+                            payload = msg.get_payload(0).get_payload(decode=True)
+                            if payload:
+                                body = payload.decode(errors="ignore")
+                        except:
+                            pass
+                else:
+                    # Not multipart
+                    payload = msg.get_payload(decode=True)
+                    if payload:
+                        body = payload.decode(errors="ignore")
 
                 # Extract 4-6 digit OTP
-                match = re.search(r"\b(\d{4,6})\b", body)
-                if match:
-                    result_bucket['otp'] = match.group(1)
-                    mail.logout()
-                    return
+                if body:
+                    match = re.search(r"\b(\d{4,6})\b", body)
+                    if match:
+                        result_bucket['otp'] = match.group(1)
+                        mail.logout()
+                        return
 
             time.sleep(1.5)
             
-        result_bucket['error'] = "Timeout waiting for OTP"
+        result_bucket['error'] = "Timeout waiting for OTP email"
         mail.logout()
 
     except Exception as e:
@@ -68,7 +87,7 @@ def start_otp_listener(universal_data):
     Starts the background thread and returns a result bucket dict.
     Access result_bucket['otp'] to see if value arrived.
     """
-    # ACCESSING NEW STRUCTURE
+    # Accessing Single-Account Structure
     creds = universal_data['sys']['creds']['gmail']
     config = universal_data['sys']['config']['gmail']
     
