@@ -1,73 +1,809 @@
 {
-  "kill_switch": {
-    "enabled": true,
-    "dry_run": false,
-    "mtm_limit": 16,
-    "trigger_on_sl_hit": false,
-    "execution_mode": "kill_only",
-    "auto_square_off": true,
-    "test_mode_equity": true
-  },
-
-  "monitoring": {
-    "poll_interval_seconds": 2
-  },
-
-  "gmail": {
-    "sender_filter": "noreply@nmail.kotaksecurities.com",
-    "otp_subject": "OTP",
-    "timeout_seconds": 120
-  },
-
-  "logging": {
-    "level": "INFO",
-    "file": "logs/kill_switch.log",
-    "max_size_mb": 10,
-    "backup_count": 5
-  },
-
-  "web_automation": {
-    "login_url": "https://neo.kotaksecurities.com/Login",
-
-    "browser": {
-      "headless": false,
-      "viewport": { "width": 1366, "height": 768 },
-      "args": [
-        "--disable-blink-features=AutomationControlled",
-        "--disable-web-security"
-      ]
+  "USER_01": {
+    "account_active": true,
+    "account_name": "Eshaan Test1",
+    "kill_switch": {
+      "enabled": true,
+      "mtm_limit": 1000.0,
+      "sell_order_exit_confirmation": true,
+      "auto_square_off": true,
+      "trigger_on_sl_hit": true,
+      "execution_mode": "kill_only"
     },
-
-    "flow_steps": [
-      { "step": "A_enter_mobile",             "type": "input",  "cred_key": "mobile_number",                "coords": null,                           "keys": ["Enter"],                    "wait": 1.2 },
-
-      { "step": "B_enter_password",           "type": "input",  "cred_key": "kotak_neo_login_password",     "coords": null,                           "keys": null,                         "wait": 0.3 },
-
-      { "step": "C_trigger_otp",              "type": "keys",   "cred_key": null,                            "coords": null,                           "keys": ["Enter"],                    "wait": 1.5 },
-
-      { "step": "D_process_otp",              "type": "otp",    "cred_key": null,                            "coords": null,                           "keys": null,                         "wait": 2.0 },
-
-      { "step": "D1_dismiss_risk_popup",      "type": "keys",   "cred_key": null,                            "coords": null,                           "keys": ["Tab", "Tab", "Enter"],      "wait": 1.5 },
-
-      { "step": "E_dismiss_popup",            "type": "keys",   "cred_key": null,                            "coords": null,                           "keys": ["Tab", "Tab", "Enter"],      "wait": 1.0 },
-
-      { "step": "F_open_avatar_menu",         "type": "click",  "cred_key": null,                            "coords": { "x": 1285, "y": 27 },         "keys": null,                         "wait": 1.2 },
-
-      { "step": "G_open_account_details",     "type": "keys",   "cred_key": null,                            "coords": null,                           "keys": ["Tab", "Tab", "Tab", "Enter"], "wait": 1.2 },
-
-      { "step": "H_focus_account_canvas",     "type": "click",  "cred_key": null,                            "coords": { "x": 499, "y": 224 },         "keys": null,                         "wait": 0.5 },
-
-      { "step": "I_scroll_to_manage",         "type": "scroll", "cred_key": null,                            "coords": null,                           "repeats": 10,                        "wait": 0.5 },
-
-      { "step": "J_click_manage_killswitch",  "type": "click",  "cred_key": null,                            "coords": { "x": 480, "y": 225 },         "keys": null,                         "wait": 1.0 },
-
-      { "step": "K_checkbox_disable_all",     "type": "keys",   "cred_key": null,                            "coords": null,                           "keys": ["Tab", "Tab", "Enter"],      "wait": 1.0 },
-
-      { "step": "L_button_disable_segments",  "type": "keys",   "cred_key": null,                            "coords": null,                           "keys": ["Tab", "Tab", "Tab", "Tab", "Tab", "Tab", "Tab", "Enter"], "wait": 1.0 },
-
-      { "step": "M_focus_popup_center",       "type": "click",  "cred_key": null,                            "coords": { "x": 680, "y": 440 },         "keys": null,                         "wait": 0.6 },
-
-      { "step": "N_popup_decision",           "type": "keys",   "cred_key": null,                            "coords": null,                           "keys": ["Tab", "Tab", "Enter"],      "wait": 1.0 }
-    ]
+    "monitoring": {
+      "poll_interval_seconds": 5,
+      "off_market_interval_seconds": 60
+    },
+    "logging": {
+      "level": "INFO",
+      "file": "logs/USER_01_kill_switch.log",
+      "wipe_on_start": true,
+      "max_size_mb": 10,
+      "backup_count": 5
+    },
+    "gmail": {
+      "timeout_seconds": 120,
+      "otp_subject": "OTP"
+    },
+    "web_automation": {
+      "login_url": "https://neo.kotaksecurities.com/Login",
+      "search_timeout": 20000,
+      "browser": {
+        "headless": false,
+        "viewport": {
+          "width": 1366,
+          "height": 768
+        },
+        "args": [
+          "--disable-blink-features=AutomationControlled",
+          "--disable-web-security"
+        ]
+      },
+      "flow_steps": [
+        {
+          "id": 1,
+          "description": "Enter Mobile",
+          "action": "input",
+          "enabled": true,
+          "cred_key": "mobile_number",
+          "coords": null,
+          "keys": [
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.2,
+          "optional": false
+        },
+        {
+          "id": 2,
+          "description": "Enter Password",
+          "action": "input",
+          "enabled": true,
+          "cred_key": "login_password",
+          "coords": null,
+          "keys": [
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 0.3,
+          "optional": false
+        },
+        {
+          "id": 3,
+          "description": "Trigger OTP",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.5,
+          "optional": false
+        },
+        {
+          "id": 4,
+          "description": "Process OTP",
+          "action": "otp",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": null,
+          "repeats": null,
+          "wait": 2.0,
+          "optional": false
+        },
+        {
+          "id": 5,
+          "description": "Dismiss Risk Popup",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.5,
+          "optional": false
+        },
+        {
+          "id": 6,
+          "description": "Dismiss Gen Popup",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 7,
+          "description": "Open Menu",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 1285,
+            "y": 27
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 1.2,
+          "optional": false
+        },
+        {
+          "id": 8,
+          "description": "Open Acct Details",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.2,
+          "optional": false
+        },
+        {
+          "id": 9,
+          "description": "Focus Canvas",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 499,
+            "y": 224
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 0.5,
+          "optional": false
+        },
+        {
+          "id": 10,
+          "description": "Scroll Down",
+          "action": "scroll",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": null,
+          "repeats": 10,
+          "wait": 0.5,
+          "optional": false
+        },
+        {
+          "id": 11,
+          "description": "Click Kill Switch",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 480,
+            "y": 225
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 12,
+          "description": "Uncheck All",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 13,
+          "description": "Click Disable Btn",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 14,
+          "description": "Click CONFIRM (Kill)",
+          "action": "click",
+          "enabled": false,
+          "cred_key": null,
+          "coords": {
+            "x": 652,
+            "y": 617
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 15,
+          "description": "Click CANCEL (Test)",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 519,
+            "y": 617
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        }
+      ]
+    }
+  },
+  "USER_02": {
+    "account_active": false,
+    "account_name": "Inactive Test",
+    "kill_switch": {
+      "enabled": false,
+      "mtm_limit": 5000,
+      "sell_order_exit_confirmation": true,
+      "auto_square_off": false,
+      "test_mode_equity": false
+    },
+    "monitoring": {
+      "poll_interval_seconds": 2,
+      "off_market_interval_seconds": 60
+    },
+    "logging": {
+      "level": "INFO",
+      "file": "logs/USER_02_kill_switch.log",
+      "wipe_on_start": true,
+      "max_size_mb": 10,
+      "backup_count": 5
+    },
+    "gmail": {
+      "timeout_seconds": 120,
+      "otp_subject": "OTP"
+    },
+    "web_automation": {
+      "login_url": "https://neo.kotaksecurities.com/Login",
+      "search_timeout": 20000,
+      "browser": {
+        "headless": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080
+        },
+        "args": [
+          "--disable-blink-features=AutomationControlled"
+        ]
+      },
+      "flow_steps": [
+        {
+          "id": 1,
+          "description": "Enter Mobile",
+          "action": "input",
+          "enabled": true,
+          "cred_key": "mobile_number",
+          "coords": null,
+          "keys": [
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.2,
+          "optional": false
+        },
+        {
+          "id": 2,
+          "description": "Enter Password",
+          "action": "input",
+          "enabled": true,
+          "cred_key": "login_password",
+          "coords": null,
+          "keys": null,
+          "repeats": null,
+          "wait": 0.3,
+          "optional": false
+        },
+        {
+          "id": 3,
+          "description": "Trigger OTP",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.5,
+          "optional": false
+        },
+        {
+          "id": 4,
+          "description": "Process OTP",
+          "action": "otp",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": null,
+          "repeats": null,
+          "wait": 2.0,
+          "optional": false
+        },
+        {
+          "id": 5,
+          "description": "Dismiss Risk Popup",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.5,
+          "optional": true
+        },
+        {
+          "id": 6,
+          "description": "Dismiss Gen Popup",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": true
+        },
+        {
+          "id": 7,
+          "description": "Open Menu",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 1285,
+            "y": 27
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 1.2,
+          "optional": false
+        },
+        {
+          "id": 8,
+          "description": "Open Acct Details",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.2,
+          "optional": false
+        },
+        {
+          "id": 9,
+          "description": "Focus Canvas",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 499,
+            "y": 224
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 0.5,
+          "optional": false
+        },
+        {
+          "id": 10,
+          "description": "Scroll Down",
+          "action": "scroll",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": null,
+          "repeats": 10,
+          "wait": 0.5,
+          "optional": false
+        },
+        {
+          "id": 11,
+          "description": "Click Kill Switch",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 480,
+            "y": 225
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 12,
+          "description": "Uncheck All",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 13,
+          "description": "Click Disable Btn",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 14,
+          "description": "Focus Popup",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 680,
+            "y": 440
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 0.6,
+          "optional": false
+        },
+        {
+          "id": 15,
+          "description": "Final Decision",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        }
+      ]
+    }
+  },
+  "USER_03": {
+    "account_active": false,
+    "account_name": "Experimental",
+    "kill_switch": {
+      "enabled": false,
+      "mtm_limit": 10000,
+      "sell_order_exit_confirmation": false,
+      "auto_square_off": false,
+      "test_mode_equity": false
+    },
+    "monitoring": {
+      "poll_interval_seconds": 2,
+      "off_market_interval_seconds": 60
+    },
+    "logging": {
+      "level": "INFO",
+      "file": "logs/USER_03_kill_switch.log",
+      "wipe_on_start": true,
+      "max_size_mb": 10,
+      "backup_count": 5
+    },
+    "gmail": {
+      "timeout_seconds": 120,
+      "otp_subject": "OTP"
+    },
+    "web_automation": {
+      "login_url": "https://neo.kotaksecurities.com/Login",
+      "search_timeout": 20000,
+      "browser": {
+        "headless": true,
+        "viewport": {
+          "width": 1366,
+          "height": 768
+        },
+        "args": [
+          "--disable-blink-features=AutomationControlled"
+        ]
+      },
+      "flow_steps": [
+        {
+          "id": 1,
+          "description": "Enter Mobile",
+          "action": "input",
+          "enabled": true,
+          "cred_key": "mobile_number",
+          "coords": null,
+          "keys": [
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.2,
+          "optional": false
+        },
+        {
+          "id": 2,
+          "description": "Enter Password",
+          "action": "input",
+          "enabled": true,
+          "cred_key": "login_password",
+          "coords": null,
+          "keys": null,
+          "repeats": null,
+          "wait": 0.3,
+          "optional": false
+        },
+        {
+          "id": 3,
+          "description": "Trigger OTP",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.5,
+          "optional": false
+        },
+        {
+          "id": 4,
+          "description": "Process OTP",
+          "action": "otp",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": null,
+          "repeats": null,
+          "wait": 2.0,
+          "optional": false
+        },
+        {
+          "id": 5,
+          "description": "Dismiss Risk Popup",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.5,
+          "optional": true
+        },
+        {
+          "id": 6,
+          "description": "Dismiss Gen Popup",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": true
+        },
+        {
+          "id": 7,
+          "description": "Open Menu",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 1285,
+            "y": 27
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 1.2,
+          "optional": false
+        },
+        {
+          "id": 8,
+          "description": "Open Acct Details",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.2,
+          "optional": false
+        },
+        {
+          "id": 9,
+          "description": "Focus Canvas",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 499,
+            "y": 224
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 0.5,
+          "optional": false
+        },
+        {
+          "id": 10,
+          "description": "Scroll Down",
+          "action": "scroll",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": null,
+          "repeats": 10,
+          "wait": 0.5,
+          "optional": false
+        },
+        {
+          "id": 11,
+          "description": "Click Kill Switch",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 480,
+            "y": 225
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 12,
+          "description": "Uncheck All",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 13,
+          "description": "Click Disable Btn",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        },
+        {
+          "id": 14,
+          "description": "Focus Popup",
+          "action": "click",
+          "enabled": true,
+          "cred_key": null,
+          "coords": {
+            "x": 680,
+            "y": 440
+          },
+          "keys": null,
+          "repeats": null,
+          "wait": 0.6,
+          "optional": false
+        },
+        {
+          "id": 15,
+          "description": "Final Decision",
+          "action": "keys",
+          "enabled": true,
+          "cred_key": null,
+          "coords": null,
+          "keys": [
+            "Tab",
+            "Tab",
+            "Enter"
+          ],
+          "repeats": null,
+          "wait": 1.0,
+          "optional": false
+        }
+      ]
+    }
   }
 }

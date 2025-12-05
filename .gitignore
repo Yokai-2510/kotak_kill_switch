@@ -62,3 +62,4 @@ tests/__pycache__/
 # Obsidian Workspace (never commit)
 #######################################
 docs/.obsidian/
+logs/

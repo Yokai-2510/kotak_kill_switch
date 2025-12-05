@@ -8,7 +8,6 @@ class TaggedFormatter(logging.Formatter):
         msg = super().format(record)
         if hasattr(record, 'tags') and record.tags:
             tag_str = f"[{','.join(record.tags)}]"
-            # Insert tags after timestamp/level
             parts = msg.split(' - ', 1)
             if len(parts) > 1:
                 return f"{parts[0]} - {tag_str} {parts[1]}"
@@ -32,29 +31,27 @@ class TaggedLogger:
     def critical(self, msg, tags=None, exc_info=True):
         self._logger.critical(msg, extra={'tags': tags or []}, exc_info=exc_info)
 
-def setup_logger():
+def setup_logger(user_id, log_file_path, wipe_on_start=False):
     """
-    Sets up the logging directory and handlers.
-    Returns a TaggedLogger instance.
+    Sets up a specific logger for a specific user.
     """
-    # 1. Define Log Paths
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    log_dir = os.path.join(base_dir, 'logs')
-    log_file = os.path.join(log_dir, 'kill_switch.log')
-
-    # 2. Create Directory
+    # 1. Ensure Directory Exists
+    log_dir = os.path.dirname(log_file_path)
     os.makedirs(log_dir, exist_ok=True)
 
-    # 3. Setup Handlers
-    logger = logging.getLogger("KotakKillSwitch")
+    # 2. Create Unique Logger Name (Critical for Thread Safety)
+    logger_name = f"KillSwitch_{user_id}"
+    logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
-    logger.handlers.clear()
+    logger.handlers.clear() # Prevent duplicate logs
 
     # Formatter
-    fmt = TaggedFormatter("%(asctime)s [%(levelname)s] - %(message)s", datefmt="%H:%M:%S")
+    fmt = TaggedFormatter(f"%(asctime)s [{user_id}] [%(levelname)s] - %(message)s", datefmt="%H:%M:%S")
 
     # File Handler
-    fh = logging.FileHandler(log_file)
+    # 'w' mode overwrites file (wipes it), 'a' mode appends
+    file_mode = 'w' if wipe_on_start else 'a'
+    fh = logging.FileHandler(log_file_path, mode=file_mode)
     fh.setFormatter(fmt)
     logger.addHandler(fh)
 
