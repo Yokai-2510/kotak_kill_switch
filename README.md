@@ -1,152 +1,138 @@
-Here is a professional, client-ready **README.md**. It covers installation, configuration, usage, and safety protocols.
+Here is a comprehensive, user-centric **README.md**. It is written specifically for the **End User (Trader)**, focusing on safety, logic flow, and ease of use.
 
-I have also included the content for `requirements.txt` at the bottom, as you will need that file for the installation step.
+I have also included the `requirements.txt` content at the bottom, as it is necessary for the installation step.
 
 ***
 
-# 🛡️ Kotak Kill Switch Portal (v2.0)
+# 🛡️ Kotak Neo Kill Switch Portal (v2.0)
 
 **Automated Risk Management & Emergency Exit System**
 
-The **Kotak Kill Switch Portal** is a desktop application designed for options traders. It acts as a final line of defense, monitoring your P&L in real-time and automatically disabling trading (via the Broker's Kill Switch) when specific risk criteria are met.
+The **Kill Switch Portal** is a desktop application designed for serious options traders using Kotak Neo. It acts as an automated "Risk Manager" that sits silently in the background, monitoring your P&L. If your losses exceed your predefined limit, it automatically intervenes to **Square Off positions** and **Disable Trading** on your account to prevent further damage.
 
 ---
 
-## 🚀 Key Features
+## 🧠 How It Works (The Logic)
 
-*   **Real-Time Monitoring:** Tracks MTM (Mark-to-Market) and Stop-Loss orders continuously.
-*   **Dual-Trigger Logic:** Activates only when **Daily MTM Limit is breached** AND **Stop-Loss is hit** (configurable).
-*   **Hybrid Execution:**
-    1.  **Soft Kill:** Attempts to auto-square off all open positions via API.
-    2.  **Hard Kill:** Simultaneously launches a browser automation bot to physically click the "Kill Switch" button in the Kotak Neo Web Portal.
-*   **Multi-Account Support:** Manage multiple user IDs from a single dashboard.
-*   **Dynamic Control:** Connect/Disconnect accounts without restarting the application.
-*   **Secure:** Credentials are masked in the GUI and sanitized in logs.
+The system operates on a **"Dual-Trigger & Hybrid Execution"** model to ensure safety without accidental firings.
 
----
+### 1. The Trigger Logic
+The Kill Switch activates **ONLY** when specific conditions are met simultaneously:
+1.  **MTM Breach:** Your Realized + Unrealized Loss exceeds your limit (e.g., Loss > ₹10,000).
+2.  **Stop-Loss Confirmation (Optional):** You can configure it to trigger *only* if a Stop-Loss order on a specific Sold position has actually been executed. This prevents panic exits during temporary MTM spikes.
 
-## 📋 Prerequisites
-
-Before installing, ensure you have the following:
-
-1.  **Operating System:** Windows 10/11, macOS, or Linux.
-2.  **Python:** Version 3.10 or higher. [Download Here](https://www.python.org/downloads/).
-3.  **Google Chrome:** Installed on your system (required for browser automation).
-4.  **Kotak Neo Credentials:**
-    *   User ID / Password / MPIN.
-    *   **Consumer Key & Secret** (From Kotak API Dashboard).
-    *   **TOTP Secret** (From an authenticator app setup).
+### 2. The Execution Sequence (When Triggered)
+Once triggered, the system performs a parallel "Hard" and "Soft" kill:
+*   **Step A (API Square Off):** Immediately sends Market Exit orders for all open positions via the API.
+*   **Step B (Browser Automation):** Simultaneously opens a hidden Chrome window, logs into the Kotak Neo website, navigates to settings, and physically clicks the **"Kill Switch"** button.
+*   **Step C (Verification):** It scans your Gmail for the official "Kill Switch Activated" email from Kotak to confirm the action was successful.
+*   **Step D (Daily Lockout):** Once verified, the application **LOCKS** your profile for the rest of the day. You cannot restart the session or place new trades through the app, preventing "Revenge Trading."
 
 ---
 
-## 🛠️ Installation Guide
+## 📦 Installation Guide
 
-Follow these steps to set up the application on your machine.
+### Prerequisites
+*   **Windows 10/11** (Preferred) or macOS/Linux.
+*   **Google Chrome** installed.
+*   **Python 3.10+** installed.
 
-### 1. Extract the Application
-Download and extract the provided `.zip` folder to your desired location (e.g., Desktop).
+### Step 1: Setup
+1.  Download and unzip the software folder.
+2.  Open the folder.
+3.  Right-click inside the folder and select **"Open Terminal"** (or CMD).
 
-### 2. Open Terminal
-*   **Windows:** Open the folder, type `cmd` in the address bar, and hit Enter.
-*   **Mac/Linux:** Open Terminal and `cd` into the folder directory.
+### Step 2: Install Dependencies
+Run the following commands one by one in the terminal:
 
-### 3. Create a Virtual Environment (Recommended)
-This keeps the application dependencies isolated.
 ```bash
-# Windows
+# 1. Create a virtual environment (Recommended)
 python -m venv .venv
+
+# 2. Activate the environment
+# Windows:
 .venv\Scripts\activate
-
-# Mac/Linux
-python3 -m venv .venv
+# Mac/Linux:
 source .venv/bin/activate
-```
 
-### 4. Install Dependencies
-Run the following command to install required libraries:
-```bash
+# 3. Install required libraries
 pip install -r requirements.txt
-```
 
-### 5. Install Browser Drivers
-This downloads the necessary browser binaries for the automation bot.
-```bash
+# 4. Install browser drivers for automation
 playwright install chromium
 ```
 
----
-
-## 🖥️ Usage Guide
-
-### 1. Launch the Application
-Run the main script:
+### Step 3: Launch
+To start the application:
 ```bash
 python main.py
 ```
-*The application window will open after a brief initialization.*
-
-### 2. Configure Accounts (First Time Setup)
-1.  Navigate to the **Accounts** tab in the sidebar.
-2.  Select the user tab (e.g., `USER_01`) at the top.
-3.  **Enter Credentials:**
-    *   **Alias:** Give the account a friendly name (e.g., "Main Portfolio").
-    *   **Kotak Neo Credentials:** Fill in Mobile, UCC, Consumer Key, Password, MPIN, and TOTP Secret.
-    *   **Gmail Configuration:** Enter your email and App Password (required for fetching OTPs during the Kill Switch process).
-4.  Click **SAVE CREDENTIALS**.
-
-### 3. Connect the System
-1.  In the **Accounts** tab, toggle the **"System Active"** switch to **ON**.
-2.  The system will attempt to log in.
-    *   **Green (System Running):** Login successful. Monitoring started.
-    *   **Red (Auth Failed):** Check your credentials and try again.
-
-### 4. Set Risk Parameters
-Navigate to the **Risk Config** tab:
-1.  **Daily MTM Loss Limit:** Enter the maximum loss amount (e.g., `5000`). *Note: Enter as a positive number. The system treats it as a loss limit.*
-2.  **Kill Switch Enabled:** Master toggle to arm the system.
-3.  **Sell Order Exit Confirmed:**
-    *   **ON:** Kill Switch triggers ONLY if MTM limit is breached **AND** a Stop-Loss order on a sold position has been executed.
-    *   **OFF:** Kill Switch triggers immediately upon MTM breach (Panic Mode).
-4.  **Auto Square Off:** If ON, the system attempts to close open positions via API before killing the account.
-5.  Click **SAVE CHANGES**.
-
-### 5. Monitoring
-*   **Dashboard:** View global P&L and risk utilization across all accounts.
-*   **Live Monitor:** View detailed open positions and order book status.
-*   **Status:** View heartbeat health, API connection status, and service threads.
-*   **System Logs:** View real-time logs for debugging.
 
 ---
 
-## ⚠️ Understanding the Kill Logic
+## 🖥️ Interface Walkthrough
 
-The system runs a background loop every few seconds. Here is the exact logic it follows:
+### 1. Accounts (The Control Center)
+This is where you manage connections.
+*   **Input Credentials:** Enter your Mobile, Password, MPIN, and API Keys.
+*   **Gmail Config:** Enter your email and App Password (needed to read OTPs and Kill Confirmations).
+*   **System Active Switch:**
+    *   **Toggle ON:** Connects to Kotak, starts monitoring P&L, and arms the Kill Switch.
+    *   **Toggle OFF:** Disconnects and stops monitoring.
+    *   **Status:** Displays "RUNNING", "STOPPED", or "LOCKED" (if you hit your loss limit today).
 
-1.  **Check MTM:** Is `Current MTM <= -1 * Limit`? (e.g., Loss is 6000, Limit is 5000).
-2.  **Check SL Status:** Has any `BUY` order with type `SL` or `SL-M` been `COMPLETE` or `PARTIALLY_FILLED`?
-3.  **Trigger Decision:**
-    *   If **Sell Order Exit Confirmed** is ON: Both #1 AND #2 must be true.
-    *   If **Sell Order Exit Confirmed** is OFF: Only #1 needs to be true.
+### 2. Risk Config (The Rules)
+Define when the system should pull the plug.
+*   **MTM Limit:** The maximum loss you are willing to take (e.g., `5000`). Enter as a positive number.
+*   **Kill Switch Enabled:** Master toggle. If OFF, the system monitors but will **NOT** take action.
+*   **Sell Order Exit Confirmed:**
+    *   **ON:** Safe Mode. Waits for a Stop-Loss order to be filled before killing.
+    *   **OFF:** Panic Mode. Kills immediately when MTM limit is touched, regardless of open orders.
+*   **Auto Square Off:** If ON, tries to close positions via API before blocking the account.
 
-**When Triggered:**
-1.  **API Action:** Sends Market Exit orders for all open positions.
-2.  **Browser Action:** Opens a hidden Chrome window -> Logs into Kotak Neo -> Navigates to Settings -> Clicks "Kill Switch" -> Confirms.
-3.  **Shutdown:** The application stops monitoring for that account to prevent interference.
+### 3. Dashboard (The Overview)
+A high-level view of your trading health.
+*   **Net System P&L:** Total P&L across all active accounts.
+*   **Global Kill Switch:** A big red button to manually trigger the Kill sequence on ALL active accounts immediately.
+*   **Account Cards:** Shows individual status, MTM, and whether an account is "Safe", "Killing", or "Locked".
+
+### 4. Live Monitor
+Shows raw data directly from the broker.
+*   **Open Positions:** Real-time P&L per position.
+*   **Order Book:** Status of your pending and executed orders.
+
+### 5. Status & Logs
+*   **Status:** Technical telemetry. Check here to see if the "Watchdog" is running or if the system detected a kill.
+*   **System Logs:** A detailed text log of everything the bot is doing (e.g., "Scanning for Price", "Heartbeat OK", "Error Logging In").
 
 ---
 
-## ❓ Troubleshooting
+## ⚠️ Important Safety Notes
 
-**Q: The application crashes immediately on open.**
-A: Ensure `config.json` and `credentials.json` exist in the `source` folder and contain valid JSON structure.
+1.  **Daily Lockout:**
+    If the Kill Switch triggers and is verified via email, the app will enter **"LOCKED (VIEW ONLY)"** mode. You cannot use the app to trade again until the next day.
+    *   *Emergency:* If this was a mistake, go to **Settings > Emergency Reset** to unlock manually.
 
-**Q: "System Active" turns on, then immediately off.**
-A: Check the **System Logs** tab. It usually means Authentication failed. Verify your Password, MPIN, or Consumer Key.
+2.  **Gmail Integration:**
+    For the verification to work, you must use an **App Password** for Gmail (not your normal login password). This ensures the bot can check for the "Kill Switch Activated" email.
 
-**Q: Browser automation fails/times out.**
-A: Ensure you have run `playwright install chromium`. Also, check if your internet connection is stable.
-
-**Q: I don't see my logs.**
-A: Logs are stored in the `logs/` folder. In the GUI, ensure you have selected the correct category/account filter.
+3.  **Headless Mode:**
+    In **Settings**, you can enable "Headless Mode".
+    *   **ON:** The browser automation runs invisibly in the background.
+    *   **OFF:** You will see the Chrome window open and click the buttons automatically (Recommended for first-time testing).
 
 ---
+
+## 📄 requirements.txt
+
+Save the following text into a file named `requirements.txt` in the main folder:
+
+```text
+customtkinter
+neo_api_client
+playwright
+pyotp
+packaging
+requests
+urllib3
+```
