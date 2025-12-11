@@ -1,9 +1,4 @@
-#   main.py
-#   KOTAK KILL SWITCH - MULTI-ACCOUNT ORCHESTRATOR
-
-
 import sys
-import time
 from utils.startup import load_registry
 from services.engine import TradeEngine
 from gui.gui_app import KillSwitchApp
@@ -11,53 +6,32 @@ from gui.gui_app import KillSwitchApp
 
 def main():
 
-    # ====================  1. INITIALIZATION  ====================
-    print("\n=== SYSTEM STARTUP ===")
+    print("\n=== SYSTEM STARTUP (Dynamic Architecture) ===")
     
     user_ids = load_registry()
     if not user_ids:
-        print("CRITICAL: No users found in registry.")
+        print("CRITICAL: No users found.")
         sys.exit(1)
         
-    engines = [TradeEngine(uid) for uid in user_ids]
+    # 1. Initialize Engines (Idle Mode)
+    engines = [TradeEngine(uid) for uid in user_ids]     
     print(f">>> Initialized {len(engines)} Engines.")
 
-
-    # ====================  2. AUTHENTICATION  ====================
-    print("\n>>> Authenticating Clients...")
-    for engine in engines:
-        engine.authenticate()
-
-
-   # ====================  3. PRE-FLIGHT CHECKS  ====================
-    print("\n>>> Running System Checks...")
-    for engine in engines:
-        engine.run_preflight_check()
-
- 
-    # ====================  4. START SERVICES  ====================
-    print("\n>>> Starting Background Threads...")
-    for engine in engines:
-        engine.start_services()
-
- 
-   # ====================  5. LAUNCH GUI  ====================
-    print(f"\n>>> System Active. Launching GUI for {len(engines)} accounts...")
-    
+    # 2. Launch GUI
+    # The GUI now acts as the controller.
+    print(f"\n>>> Launching GUI...")
     try:
         app = KillSwitchApp(engines)
         app.mainloop()
-            
     except KeyboardInterrupt:
-        print("\nUser Interrupted via Terminal.")
+        print("\nUser Exit.")
     except Exception as e:
-        print(f"\nCRITICAL GUI CRASH: {e}")
+        print(f"\nCRITICAL CRASH : {e}")
     finally:
-        print("\n=== SYSTEM SHUTDOWN INITIATED ===")
-        print("Stopping all engines...")
+        print("\n=== SHUTDOWN ===")
         for engine in engines:
-            engine.stop()
-        print("Goodbye.")
+            engine.stop_session()
+        print("Done.")
 
 
 if __name__ == "__main__":

@@ -1,194 +1,152 @@
-Here is a complete, professional **README.md** formatted for GitHub. It covers installation, configuration, architecture, and safety disclaimers.
+Here is a professional, client-ready **README.md**. It covers installation, configuration, usage, and safety protocols.
 
-You can save this directly as `README.md` in your project root.
+I have also included the content for `requirements.txt` at the bottom, as you will need that file for the installation step.
 
 ***
 
-# 🛡️ Kotak Neo Automated Kill Switch
+# 🛡️ Kotak Kill Switch Portal (v2.0)
 
-A robust, Python-based risk management system for **Kotak Securities (Neo)**. This tool monitors your trading portfolio in real-time and automatically **disables trading** (Kill Switch) when specific risk criteria are met.
+**Automated Risk Management & Emergency Exit System**
 
-Unlike standard API wrappers, this system uses a **Hybrid Architecture**:
-1.  **API Layer:** Fetches real-time Positions, Orders, and Quotes (LTP) for microsecond-latency monitoring.
-2.  **Web Automation Layer (Playwright):** Logs into the Kotak Neo Web Portal to execute the "Kill Switch" (which is not available via the public API).
+The **Kotak Kill Switch Portal** is a desktop application designed for options traders. It acts as a final line of defense, monitoring your P&L in real-time and automatically disabling trading (via the Broker's Kill Switch) when specific risk criteria are met.
 
 ---
 
 ## 🚀 Key Features
 
-*   **Double-Trigger Logic:** Activates Kill Switch only when:
-    *   Daily MTM Loss exceeds your defined limit (e.g., ₹10,000).
-    *   **AND** A Stop-Loss (SL) order on a Sold Position has been hit (configurable).
-*   **Automated Login System:**
-    *   Handles Kotak Neo 2FA (Mobile + Password).
-    *   **Auto-fetches OTP** from your Gmail using Google API.
-    *   Bypasses Flutter Web limitations using keyboard emulation.
-*   **Daemon Mode:** Runs continuously during market hours.
-*   **Detailed Logging:** Tagged logging system (console + file) for audit trails.
-*   **Dry Run Support:** Test the logic without actually locking your account.
+*   **Real-Time Monitoring:** Tracks MTM (Mark-to-Market) and Stop-Loss orders continuously.
+*   **Dual-Trigger Logic:** Activates only when **Daily MTM Limit is breached** AND **Stop-Loss is hit** (configurable).
+*   **Hybrid Execution:**
+    1.  **Soft Kill:** Attempts to auto-square off all open positions via API.
+    2.  **Hard Kill:** Simultaneously launches a browser automation bot to physically click the "Kill Switch" button in the Kotak Neo Web Portal.
+*   **Multi-Account Support:** Manage multiple user IDs from a single dashboard.
+*   **Dynamic Control:** Connect/Disconnect accounts without restarting the application.
+*   **Secure:** Credentials are masked in the GUI and sanitized in logs.
 
 ---
 
-## 📂 Project Structure
+## 📋 Prerequisites
 
-```text
-kotak_kill_switch/
-├── main.py                    # Entry point (Orchestrator)
-├── requirements.txt           # Python dependencies
-├── logs/                      # Application logs
-├── source/
-│   ├── config.json            # Risk limits & System settings
-│   ├── credentials.json       # API Keys & Login Secrets
-│   ├── gmail_credentials.json # Google OAuth Client Secret
-│   └── gmail_token.json       # Auto-generated Gmail Token
-├── kotak_api/                 # Phase 1 & 2: Data Fetching (NeoAPI)
-├── trigger_logic/             # Phase 3: MTM & SL Calculations
-├── services/                  # Threaded Services (Data, Risk, Kill)
-├── web_automation/            # Phase 4: Playwright & Gmail Logic
-└── utils/                     # Logger & Initialization
+Before installing, ensure you have the following:
+
+1.  **Operating System:** Windows 10/11, macOS, or Linux.
+2.  **Python:** Version 3.10 or higher. [Download Here](https://www.python.org/downloads/).
+3.  **Google Chrome:** Installed on your system (required for browser automation).
+4.  **Kotak Neo Credentials:**
+    *   User ID / Password / MPIN.
+    *   **Consumer Key & Secret** (From Kotak API Dashboard).
+    *   **TOTP Secret** (From an authenticator app setup).
+
+---
+
+## 🛠️ Installation Guide
+
+Follow these steps to set up the application on your machine.
+
+### 1. Extract the Application
+Download and extract the provided `.zip` folder to your desired location (e.g., Desktop).
+
+### 2. Open Terminal
+*   **Windows:** Open the folder, type `cmd` in the address bar, and hit Enter.
+*   **Mac/Linux:** Open Terminal and `cd` into the folder directory.
+
+### 3. Create a Virtual Environment (Recommended)
+This keeps the application dependencies isolated.
+```bash
+# Windows
+python -m venv .venv
+.venv\Scripts\activate
+
+# Mac/Linux
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
----
-
-## 🛠️ Installation & Setup
-
-### 1. Prerequisites
-*   Python 3.10+
-*   Google Cloud Project (for Gmail API)
-*   Kotak Neo Account (API Credentials)
-
-### 2. Install Dependencies
+### 4. Install Dependencies
+Run the following command to install required libraries:
 ```bash
-git clone https://github.com/yourusername/kotak-kill-switch.git
-cd kotak-kill-switch
-
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# Install libraries
 pip install -r requirements.txt
+```
 
-# Install Playwright Browsers
+### 5. Install Browser Drivers
+This downloads the necessary browser binaries for the automation bot.
+```bash
 playwright install chromium
 ```
 
-### 3. Google Gmail API Setup
-1.  Go to [Google Cloud Console](https://console.cloud.google.com/).
-2.  Create a project -> Enable **Gmail API**.
-3.  Go to **Credentials** -> Create **OAuth 2.0 Client ID** (Desktop App).
-4.  Download the JSON file, rename it to `gmail_credentials.json`, and place it in the `source/` folder.
-
 ---
 
-## ⚙️ Configuration
+## 🖥️ Usage Guide
 
-### 1. Credentials (`source/credentials.json`)
-Create this file to store sensitive data.
-
-```json
-{
-  "kotak": {
-    "consumer_key": "YOUR_NEO_CONSUMER_KEY",
-    "mobile_number": "9999999999",
-    "mpin": "123456",
-    "totp_secret": "YOUR_TOTP_SECRET_BASE32",
-    "environment": "prod",
-    "ucc": "YOUR_CLIENT_CODE",
-    "kotak_neo_login_password": "YourWebPassword"
-  },
-  "gmail": {
-    "email": "your_email@gmail.com",
-    "credentials_file": "source/gmail_credentials.json",
-    "token_file": "source/gmail_token.json",
-    "scopes": ["https://www.googleapis.com/auth/gmail.readonly"],
-    "otp_sender": "noreply@kotaksecurities.com",
-    "otp_subject_contains": "OTP"
-  }
-}
-```
-
-### 2. Settings (`source/config.json`)
-Configure your risk limits.
-
-```json
-{
-  "kill_switch": {
-    "enabled": true,
-    "dry_run": false,               
-    "mtm_limit": 10000,             
-    "trigger_on_sl_hit": true,      
-    "execution_mode": "kill_only"   
-  },
-  "monitoring": {
-    "poll_interval_seconds": 2
-  },
-  "web_automation": {
-    "headless": false,
-    "login_url": "https://neo.kotaksecurities.com/Login"
-  }
-}
-```
-*   `dry_run`: If `true`, logic triggers but browser won't click the final button.
-*   `execution_mode`: currently supports `kill_only` (locks account).
-*   `mtm_limit`: The loss amount (absolute value) that triggers the system.
-
----
-
-## ▶️ Usage
-
-### First Run (Authorization)
-On the very first run, a browser window will open asking you to authorize the Gmail API access. This generates the `gmail_token.json`.
-
+### 1. Launch the Application
+Run the main script:
 ```bash
 python main.py
 ```
+*The application window will open after a brief initialization.*
 
-### Modes
-**1. Daemon Mode (Default):**
-Runs continuously, polling data and monitoring risk.
-```bash
-python main.py
-```
+### 2. Configure Accounts (First Time Setup)
+1.  Navigate to the **Accounts** tab in the sidebar.
+2.  Select the user tab (e.g., `USER_01`) at the top.
+3.  **Enter Credentials:**
+    *   **Alias:** Give the account a friendly name (e.g., "Main Portfolio").
+    *   **Kotak Neo Credentials:** Fill in Mobile, UCC, Consumer Key, Password, MPIN, and TOTP Secret.
+    *   **Gmail Configuration:** Enter your email and App Password (required for fetching OTPs during the Kill Switch process).
+4.  Click **SAVE CREDENTIALS**.
 
-**2. Single Run Mode:**
-Runs one check cycle and exits (useful for debugging logic).
-```bash
-python main.py --mode single_run
-```
+### 3. Connect the System
+1.  In the **Accounts** tab, toggle the **"System Active"** switch to **ON**.
+2.  The system will attempt to log in.
+    *   **Green (System Running):** Login successful. Monitoring started.
+    *   **Red (Auth Failed):** Check your credentials and try again.
 
----
+### 4. Set Risk Parameters
+Navigate to the **Risk Config** tab:
+1.  **Daily MTM Loss Limit:** Enter the maximum loss amount (e.g., `5000`). *Note: Enter as a positive number. The system treats it as a loss limit.*
+2.  **Kill Switch Enabled:** Master toggle to arm the system.
+3.  **Sell Order Exit Confirmed:**
+    *   **ON:** Kill Switch triggers ONLY if MTM limit is breached **AND** a Stop-Loss order on a sold position has been executed.
+    *   **OFF:** Kill Switch triggers immediately upon MTM breach (Panic Mode).
+4.  **Auto Square Off:** If ON, the system attempts to close open positions via API before killing the account.
+5.  Click **SAVE CHANGES**.
 
-## 🧠 Architecture Flow
-
-1.  **Init:** Loads config, sets up logger, authenticates API.
-2.  **Threads Start:**
-    *   `DataThread`: Polls Positions, Orders, and Quotes every 2 seconds.
-    *   `RiskThread`: Calculates Realized + Unrealized PnL. Checks if SL orders on sold legs are `COMPLETE`.
-    *   `KillSwitchThread`: Waits for the `trigger_signal`.
-3.  **Trigger Event:**
-    *   If `MTM <= -10000` **AND** `SL_Hit == True`:
-    *   `RiskThread` sets `trigger_signal = True`.
-4.  **Execution:**
-    *   `KillSwitchThread` wakes up.
-    *   Launches Chromium via Playwright.
-    *   Logs in -> Reads OTP from Gmail -> Enters OTP.
-    *   Navigates to Settings -> Clicks "Kill Switch".
-    *   Shuts down the system.
-
----
-
-## ⚠️ Disclaimer
-
-**USE AT YOUR OWN RISK.**
-
-This software is for educational purposes only. Automated trading systems can fail due to internet issues, API downtime, or software bugs.
-*   Always monitor the system while it is running.
-*   The authors are **not responsible** for any financial losses incurred while using this software.
-*   Test thoroughly in `dry_run` mode before using real capital.
+### 5. Monitoring
+*   **Dashboard:** View global P&L and risk utilization across all accounts.
+*   **Live Monitor:** View detailed open positions and order book status.
+*   **Status:** View heartbeat health, API connection status, and service threads.
+*   **System Logs:** View real-time logs for debugging.
 
 ---
 
-## 📜 License
+## ⚠️ Understanding the Kill Logic
 
-MIT License. See `LICENSE` file for details.
+The system runs a background loop every few seconds. Here is the exact logic it follows:
+
+1.  **Check MTM:** Is `Current MTM <= -1 * Limit`? (e.g., Loss is 6000, Limit is 5000).
+2.  **Check SL Status:** Has any `BUY` order with type `SL` or `SL-M` been `COMPLETE` or `PARTIALLY_FILLED`?
+3.  **Trigger Decision:**
+    *   If **Sell Order Exit Confirmed** is ON: Both #1 AND #2 must be true.
+    *   If **Sell Order Exit Confirmed** is OFF: Only #1 needs to be true.
+
+**When Triggered:**
+1.  **API Action:** Sends Market Exit orders for all open positions.
+2.  **Browser Action:** Opens a hidden Chrome window -> Logs into Kotak Neo -> Navigates to Settings -> Clicks "Kill Switch" -> Confirms.
+3.  **Shutdown:** The application stops monitoring for that account to prevent interference.
+
+---
+
+## ❓ Troubleshooting
+
+**Q: The application crashes immediately on open.**
+A: Ensure `config.json` and `credentials.json` exist in the `source` folder and contain valid JSON structure.
+
+**Q: "System Active" turns on, then immediately off.**
+A: Check the **System Logs** tab. It usually means Authentication failed. Verify your Password, MPIN, or Consumer Key.
+
+**Q: Browser automation fails/times out.**
+A: Ensure you have run `playwright install chromium`. Also, check if your internet connection is stable.
+
+**Q: I don't see my logs.**
+A: Logs are stored in the `logs/` folder. In the GUI, ensure you have selected the correct category/account filter.
+
+---

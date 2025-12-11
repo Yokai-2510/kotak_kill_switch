@@ -1,17 +1,13 @@
 def check_sl_status(universal_data):
     """
-    Iterates through orders to detect if a Stop-Loss order was executed.
+    Checks if a Stop-Loss order for a Short Position has been EXECUTED.
     
-    LOGIC BRANCHES:
-    1. STANDARD (Short Options): Checks for 'BUY' orders only.
-    2. TEST MODE (Long Equity): Checks for 'SELL' orders (if config enabled).
+    Logic based on API Docs:
+    1. Order Type must be 'SL' or 'SL-M'.
+    2. Transaction Type must be 'B' (Buy covering Short).
+    3. Execution Check: 'filled_qty' must equal 'qty' (Strict Complete).
     """
-    
     log = universal_data['sys']['log']
-    config = universal_data['sys']['config']['kill_switch']
-    
-    # Check if we are in Equity Test Mode (Long positions)
-    is_test_mode = config.get('test_mode_equity', False)
     
     with universal_data['sys']['lock']:
         orders = universal_data['market']['orders']
@@ -20,30 +16,31 @@ def check_sl_status(universal_data):
     
     try:
         for order in orders:
-            # 1. Common Checks (Must be SL order and Must be Complete)
-            o_type = order.get('type', '').upper()
+            # 1. Filter for SL Orders (Kotak uses 'SL', 'SL-M')
+            o_type = order.get('type', '')
             if o_type not in ['SL', 'SL-M']:
                 continue
             
-            status = order.get('status', '').upper()
-            if status not in ['COMPLETE', 'TRADED', 'FILLED']:
+            # 2. Filter for Buy Orders (Exiting a Sell)
+            # Kotak API returns "B" for Buy
+            txn = order.get('transaction_type', '')
+            if txn not in ['B', 'BUY']:
                 continue
-            
-            txn_type = order.get('transaction_type', '').upper()
-            
-            # --- BRANCH 1: PRODUCTION LOGIC (Short Options) ---
-            # We only care if a BUY order triggered (Covering a Short)
-            if txn_type in ['B', 'BUY']:
-                sl_hit_detected = True
-                log.warning(f"Short Leg SL Hit! (BUY Order {order.get('order_id')})", tags=["RISK", "SL_HIT"])
-                break
 
-            # --- BRANCH 2: TESTING LOGIC (Long Stocks) ---
-            # Only runs if 'test_mode_equity' is TRUE in config
-            # We check if a SELL order triggered (Exiting a Long)
-            elif is_test_mode and txn_type in ['S', 'SELL']:
+            # 3. Check Execution Status (Math based)
+            qty = order.get('qty', 0)
+            filled = order.get('filled_qty', 0)
+            status = order.get('status', '')
+
+            # STRICT RULE: Client requires "Completely Filled" only.
+            # We check if Filled Qty equals Total Qty.
+            # We also check if status is explicitly 'COMPLETE' or 'FILLED' as a backup.
+            is_complete = (qty > 0 and filled == qty) or status in ['COMPLETE', 'FILLED']
+            
+            if is_complete:
                 sl_hit_detected = True
-                log.warning(f"TEST MODE: Long Leg SL Hit! (SELL Order {order.get('order_id')})", tags=["RISK", "TEST_HIT"])
+                oid = order.get('order_id')
+                log.warning(f"Short Leg SL Hit! (Order {oid}: {int(filled)}/{int(qty)} filled)", tags=["RISK", "SL_HIT"])
                 break
             
         with universal_data['sys']['lock']:

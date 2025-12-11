@@ -1,7 +1,7 @@
 #######################################
 # Python Cache / Build Junk
 #######################################
-__pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -30,21 +30,27 @@ Thumbs.db
 #######################################
 # Logs / Temp / Cache
 #######################################
+logs/
 *.log
 *.cache
 *.tmp
+*.snapshot.json
+*.backup.json
 
 #######################################
 # Sensitive Config / Credentials (DO NOT PUSH)
 #######################################
 source/credentials.json
-
+.env
+.env.*
 
 #######################################
 # Web Automation / Selenium Junk
 #######################################
 *.session
 *.cookies
+chromedriver*
+geckodriver*
 
 #######################################
 # Images (optional)
@@ -62,4 +68,3 @@ tests/__pycache__/
 # Obsidian Workspace (never commit)
 #######################################
 docs/.obsidian/
-logs/
