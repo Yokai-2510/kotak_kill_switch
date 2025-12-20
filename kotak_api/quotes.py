@@ -21,23 +21,30 @@ def sync_ltp(universal_data):
 
         response = client.quotes(instrument_tokens=quote_tokens, quote_type='ltp')
 
-        updated_quotes = {}
+        # --- STRICT VALIDATION ---
+        if response is None:
+            raise Exception("Quote API returned None")
+        # Note: Quotes API might not strictly have 'stat' field in all versions, 
+        # but usually does. We check for list presence.
         data_list = []
+        if 'message' in response: data_list = response['message']
+        elif 'data' in response: data_list = response['data']
         
-        if response and 'message' in response:
-            data_list = response['message']
-        elif response and 'data' in response:
-            data_list = response['data']
-            
+        if not data_list and response.get('stat') != 'Ok':
+             raise Exception(f"Quote API Error: {response}")
+        # -------------------------
+
+        updated_quotes = {}
         for item in data_list:
             tk = item.get('instrument_token', '')
-            ltp = float(item.get('last_traded_price', 0.0))
-            if tk: updated_quotes[tk] = ltp
+            ltp = float(item.get('last_traded_price', 0.0) or 0.0)
+            if tk and ltp > 0: # Only update if we have a valid price
+                updated_quotes[tk] = ltp
 
-        # Update Market Data + RAW DUMP
         with universal_data['sys']['lock']:
             universal_data['market']['quotes'].update(updated_quotes)
-            universal_data['market']['raw']['quotes'] = response  # <--- RAW OVERWRITE
+            universal_data['market']['raw']['quotes'] = response
 
     except Exception as e:
-        log.error(f"Error syncing quotes: {e}", tags=["API", "QT"])
+        # Re-raise to preserve old prices
+        raise e

@@ -2,8 +2,7 @@ import time
 
 def square_off_all_positions(universal_data):
     """
-    Fetches all positions and places MARKET exit orders for any open position.
-    Used during the Kill Switch sequence.
+    Auto-Kill Logic: Iterates ALL open positions and closes them.
     """
     log = universal_data['sys']['log']
     client = universal_data['sys']['api']
@@ -11,79 +10,95 @@ def square_off_all_positions(universal_data):
     log.warning(">>> INITIATING AUTO-SQUARE OFF SEQUENCE <<<", tags=["RISK", "SQ_OFF"])
 
     try:
-        # 1. Fetch Fresh Positions
         response = client.positions()
-        
         if not response or 'data' not in response:
-            log.info("No positions data found to square off.", tags=["SQ_OFF"])
+            log.info("No positions data found.", tags=["SQ_OFF"])
             return
 
-        raw_positions = response['data']
         orders_placed = 0
-
-        for p in raw_positions:
+        for p in response['data']:
             try:
-                # --- A. Calculate Net Qty ---
-                # Using safe float conversion helper
-                def get_val(key): 
-                    return float(p.get(key, 0) or 0)
+                # Calculate Net Qty
+                fl_buy = float(p.get('flBuyQty', 0) or 0)
+                fl_sell = float(p.get('flSellQty', 0) or 0)
+                cf_buy = float(p.get('cfBuyQty', 0) or 0)
+                cf_sell = float(p.get('cfSellQty', 0) or 0)
+                
+                net_qty = int((fl_buy + cf_buy) - (fl_sell + cf_sell))
 
-                fl_buy = get_val('flBuyQty')
-                fl_sell = get_val('flSellQty')
-                cf_buy = get_val('cfBuyQty')
-                cf_sell = get_val('cfSellQty')
+                if net_qty == 0: continue
 
-                # Net Qty = Total Buy - Total Sell
-                total_buy = fl_buy + cf_buy
-                total_sell = fl_sell + cf_sell
-                net_qty = int(total_buy - total_sell)
-
-                # If Net Qty is 0, position is already closed
-                if net_qty == 0:
-                    continue
-
-                # --- B. Prepare Exit Order ---
-                # If Net Qty is Positive (Long) -> We need to SELL
-                # If Net Qty is Negative (Short) -> We need to BUY
+                # Determine Action (Close Long -> Sell, Close Short -> Buy)
                 transaction_type = "S" if net_qty > 0 else "B"
                 abs_qty = abs(net_qty)
-
-                # Essential fields from position data
-                symbol = p.get('trdSym', '')
-                segment = p.get('exSeg', '')
-                product = p.get('prod', 'NRML') # Default to Normal if missing
-                token = p.get('tok', '')
-
-                log.info(f"Squaring off {symbol}: {transaction_type} {abs_qty} Qty ({product})", tags=["SQ_OFF"])
-
-                # --- C. Place Market Order ---
-                # Referencing Place_Order.md
-                order_resp = client.place_order(
-                    exchange_segment=segment,
-                    product=product,
-                    price="0",              # Market Order
-                    order_type="MKT",
-                    quantity=str(abs_qty),
-                    validity="DAY",
-                    trading_symbol=symbol,
-                    transaction_type=transaction_type,
-                    amo="NO"
-                )
-
-                if order_resp and order_resp.get('stat') == "Ok":
-                    log.info(f"Order Placed. ID: {order_resp.get('nOrdNo')}", tags=["SQ_OFF", "SUCCESS"])
-                    orders_placed += 1
-                else:
-                    log.error(f"Failed to place exit order for {symbol}: {order_resp}", tags=["SQ_OFF", "FAIL"])
                 
-                # Small delay to prevent rate limit spamming if many positions
-                time.sleep(0.2)
+                _place_market_exit(client, p, transaction_type, str(abs_qty), log)
+                orders_placed += 1
+                time.sleep(0.1) # Throttle slightly
 
             except Exception as inner_e:
-                log.error(f"Error processing position {p.get('trdSym')}: {inner_e}", tags=["SQ_OFF", "ERR"])
+                log.error(f"Error processing position {p.get('trdSym')}: {inner_e}", tags=["SQ_OFF"])
                 continue
 
-        log.info(f"Square Off Complete. Total Orders Placed: {orders_placed}", tags=["SQ_OFF"])
+        log.info(f"Square Off Complete. Exit Orders: {orders_placed}", tags=["SQ_OFF"])
 
     except Exception as e:
-        log.critical(f"Critical Failure in Square Off Module: {e}", tags=["SQ_OFF", "CRITICAL"], exc_info=True)
+        log.critical(f"Square Off Critical Fail: {e}", tags=["SQ_OFF", "FAIL"])
+
+
+def exit_one_position(universal_data, token, qty, txn_type, segment, product):
+    """
+    Manual Exit Logic: Closes a SPECIFIC position from the GUI.
+    """
+    log = universal_data['sys']['log']
+    client = universal_data['sys']['api']
+    
+    # 1. Safety Check: Don't allow manual exit if Kill Switch is firing
+    if universal_data['signals']['trigger_kill']:
+        log.warning("Manual Exit BLOCKED: Kill Switch is Active!", tags=["MANUAL", "BLOCK"])
+        return
+
+    log.info(f"Manual Exit Requested: {txn_type} {qty} (Token: {token})", tags=["MANUAL"])
+
+    try:
+        # Construct a partial position object for the helper
+        # We only need specific fields for the order placement
+        p_data = {
+            'tok': token,
+            'exSeg': segment,
+            'prod': product,
+            'trdSym': f"Token_{token}" # Fallback symbol name
+        }
+        
+        # 2. Place Order
+        resp = _place_market_exit(client, p_data, txn_type, str(qty), log)
+        
+        if resp and resp.get('stat') == "Ok":
+            return True, f"Order {resp.get('nOrdNo')}"
+        else:
+            return False, f"API Error: {resp}"
+
+    except Exception as e:
+        log.error(f"Manual Exit Failed: {e}", tags=["MANUAL"])
+        return False, str(e)
+
+
+def _place_market_exit(client, p_data, txn_type, qty_str, log):
+    """Internal Helper to send the API request."""
+    symbol = p_data.get('trdSym', '')
+    segment = p_data.get('exSeg', 'nse_fo')
+    product = p_data.get('prod', 'NRML')
+    
+    log.info(f"Exiting {symbol}: {txn_type} {qty_str} ({product})", tags=["TRADE"])
+    
+    return client.place_order(
+        exchange_segment=segment,
+        product=product,
+        price="0",
+        order_type="MKT",
+        quantity=qty_str,
+        validity="DAY",
+        trading_symbol=symbol,
+        transaction_type=txn_type,
+        amo="NO"
+    )

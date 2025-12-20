@@ -1,4 +1,15 @@
 To - DO : 
-    - Create Proper Logs
-    - Refactor modules through comments and desriptions 
-    - Proper Readme 
+    - if kotak api gets disconnected becaues the api requeest will be fetched and it will have no response in the positions api , the current mtm might get totaled to 0 and in the dashboard 0 will be dsiplayd  ,a better method would be to just use the prevous fetched valid value when this situation happens ... and due to race conditions ... no need to check the if connected logic , just revert to last recorded value in case the current value is NaN , 0 etc... 
+
+    - Tidy up logs and prints 
+
+    - Create REadme 
+        - Overview and Features (Auatomatic Kill switch based on SL and MTM risk etc , orders screener , multiple accounts support etc)
+        - Installation (reqruiements.txt +playwright install, how to compile to exe , cautions or take notice , venv python version , automatic modules installer script  )
+        - Suitable title ( consists of the logic aspect and the sequenital working of this )
+        - Tehcnial documentioan 
+        - overall each section should be concise and to the point , so that readme concists of these 4 sections but does not look like 1000 pagelong essay 
+
+    - Create initialization creds and source files
+
+    - automatic script to install dependancies including playwright and compilation 

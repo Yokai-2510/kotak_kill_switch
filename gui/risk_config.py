@@ -33,7 +33,7 @@ class RiskConfigTab(ctk.CTkScrollableFrame):
         self.sw_enabled = self._add_switch(self.card_logic, "Kill Switch Enabled", "Master toggle.")
         
         # Renamed Switch
-        self.sw_sl_conf = self._add_switch(self.card_logic, "Sell Order Exit Confirmed", "Kill ONLY if SL order is filled.")
+        self.sw_sl_conf = self._add_switch(self.card_logic, "Sell Order Exit Confirmation", "Kill ONLY if SL order is filled.")
         
         self.sw_auto_sq = self._add_switch(self.card_logic, "Auto Square Off (API)", "Close open positions before Kill.")
 

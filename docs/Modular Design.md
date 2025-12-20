@@ -1,245 +1,139 @@
-	## Project Structure
+	Here is the updated **Modular Design Document (v2.0)**.
 
-```
+This document reflects the transition from a linear script to an **Event-Driven, Multi-Threaded Desktop Application**. It details the architecture of the current codebase.
+
+---
+
+# 🏗️ Modular Design Document (v2.0)
+
+## 1. Project Structure
+
+```text
 kotak_kill_switch/
-├── main.py                    # Entry point - orchestrates everything
-├── requirements.txt
-├── README.md
+├── main.py                      # Application Entry Point (Launcher)
+├── requirements.txt             # Dependency List
+├── README.md                    # User Guide
 │
-├── source/
-│   ├── config.json            # MTM limit, settings, flags
-│   └── credentials.json       # API & login credentials
+├── source/                      # Data Persistence Layer
+│   ├── config.json              # Risk limits, Automation steps, Kill History
+│   └── credentials.json         # User secrets (Masked in Logs/GUI)
 │
-├── kotak_api/
-│   ├── client_login.py        # API authentication (TOTP + MPIN)
-│   ├── positions.py           # Fetch positions data
-│   ├── orders.py              # Fetch orders, check SL status
-│   └── quotes.py              # Get LTP for MTM calculation
+├── services/                    # Background Worker Threads
+│   ├── engine.py                # THE CONTROLLER: Manages Session, Auth, & Threads
+│   ├── data_service.py          # API Polling (Positions/Orders) with Auto-Heal
+│   ├── risk_service.py          # Logic Calculation + External Kill Detection
+│   ├── kill_switch_service.py   # Execution Coordinator (Parallel API + Browser)
+│   ├── snapshot_service.py      # State persistence to disk (Low freq)
+│   └── config_watcher.py        # Hot-swap Risk Limits at runtime
 │
-├── trigger_logic/
-│   ├── mtm.py                 # Calculate daily MTM from positions
-│   ├── stop_loss.py           # Detect if SL on sold position hit
-│   ├── kill_switch_logic.py   # Core logic: MTM + SL → trigger decision
-│   └── utils.py               # Helpers (logging, formatting)
+├── gui/                         # Presentation Layer (CustomTkinter)
+│   ├── gui_app.py               # Main Window & Page Loader
+│   ├── dashboard.py             # Global Stats & "Global Kill" Button
+│   ├── accounts.py              # Login Management & Dynamic Start/Stop
+│   ├── monitor.py               # Live Data Grid (Positions/OrderBook)
+│   ├── risk_config.py           # MTM Limit & Logic Switches
+│   ├── automation.py            # Drag-and-Drop Step Editor
+│   ├── status.py                # Telemetry (Watchdog, Threads, Lock Status)
+│   ├── settings.py              # App Config (Timeouts, Headless, Reset)
+│   ├── logs_page.py             # Live Log Viewer with Filters
+│   └── theme.py                 # Color Palette & Fonts
 │
-├── web_automation/
-│   ├── login.py               # Playwright: login to Kotak Neo web
-│   ├── gmail_otp.py           # Gmail API: fetch OTP from email
-│   └── kill_switch.py         # Playwright: click kill switch button
+├── web_automation/              # The "Hands" (Playwright + IMAP)
+│   ├── automate.py              # Main Browser Driver (Login -> Nav -> Click)
+│   └── automate_utils.py        # Gmail Scanner (OTP + Kill Confirmation)
 │
-├── gui/                       # (Phase 4 - optional)
-│   └── dashboard.py           # Tkinter/PyQt monitoring UI
+├── kotak_api/                   # The "Eyes" (NeoAPI Wrapper)
+│   ├── client_login.py          # 2FA Authentication Logic
+│   ├── positions.py             # Position Data Normalization
+│   ├── orders.py                # Order Book Parsing
+│   ├── quotes.py                # Real-time LTP Fetcher
+│   └── exit_trade.py            # API-based Square Off Logic
 │
-└── tests/
-    └── test_mtm.py            # Unit tests
+└── utils/                       # Shared Utilities
+    ├── initialize.py            # State Factory, Midnight Reset, Default Gen
+    ├── logger.py                # Structured Logging with Credential Masking
+    └── file_ops.py              # Safe JSON Writing (Kill History)
 ```
 
 ---
 
-## Phase 1: Core API Layer ✅ → 🔄
+## 2. Core Architecture: The "Engine" Model
 
-**Goal:** Fetch all data needed for kill switch decision
+The system is built around the **`TradeEngine`** class (`services/engine.py`). Unlike v1.0, this is not a linear script. It is a **State Controller**.
 
-|Module|File|Function|Status|
-|---|---|---|---|
-|Auth|`kotak_api/client_login.py`|`fetch_client(creds)` → returns authenticated client|✅ Done|
-|Positions|`kotak_api/positions.py`|`get_positions(client)` → returns positions list|🔄 Build|
-|Orders|`kotak_api/orders.py`|`get_orders(client)` → returns order book|🔄 Build|
-|Quotes|`kotak_api/quotes.py`|`get_ltp(client, tokens)` → returns LTP dict|🔄 Build|
-
-**Phase 1 Success Criteria:**
-
-- [ ] Can fetch positions with all fields needed for MTM
-- [ ] Can fetch orders and identify SL orders
-- [ ] Can get LTP for any instrument token
+*   **Role:** Each User ID gets one Engine instance.
+*   **State:** The Engine holds the `universal_data` dictionary (RAM) protected by a `threading.Lock`.
+*   **Lifecycle:**
+    1.  **Idle:** Engine initialized, Config loaded. No API connection.
+    2.  **Locked:** If `kill_history` shows a verified kill today, Engine refuses to start (Observer Mode).
+    3.  **Running:** User clicks "Active". Engine authenticates and spawns worker threads.
+    4.  **Stopped:** User clicks "Inactive". Engine signals threads to exit and cleans up API objects.
 
 ---
 
-## Phase 2: Trigger Logic Layer
+## 3. Service Layer (The Workers)
 
-**Goal:** Compute MTM, detect SL hit, make kill switch decision
+These run as Daemon Threads inside the Engine.
 
-|Module|File|Function|
-|---|---|---|
-|MTM|`trigger_logic/mtm.py`|`calculate_mtm(positions, quotes)` → returns total PnL|
-|SL Check|`trigger_logic/stop_loss.py`|`is_sl_hit(orders)` → returns True/False|
-|Decision|`trigger_logic/kill_switch_logic.py`|`should_trigger(mtm, sl_hit, config)` → returns True/False|
-
-**MTM Formula:**
-
-```
-For each position:
-  PnL = (SellAmt - BuyAmt) + (NetQty × LTP × multiplier)
-
-Total MTM = sum of all PnL
-```
-
-**Trigger Condition:**
-
-```python
-if mtm_loss >= config['mtm_limit'] and is_sl_hit:
-    return True  # Trigger kill switch
-```
-
-**Phase 2 Success Criteria:**
-
-- [ ] MTM calculation matches broker's P&L display
-- [ ] SL hit detection works correctly
-- [ ] Decision logic returns correct True/False
+| Service | Responsibility | Logic Flow |
+| :--- | :--- | :--- |
+| **Data Service** | Fetch Market Data | `Positions` -> `Orders` -> `Quotes` -> `Sleep(Adaptive)` |
+| **Risk Service** | Decision Making | 1. Calculate MTM<br>2. Check SL Status (`qty == fldQty`)<br>3. Check Logic (`MTM < Limit` AND `SL Hit`)<br>4. Check External Kill (Gmail Scan) |
+| **Kill Service** | Execution | **Parallel:** Launch Browser Automation AND API Square Off.<br>**Post-Action:** Spawn Async Verification Worker (Non-blocking). |
+| **Watchdog** | Self-Healing | Runs inside `engine.py`. Checks `is_alive()` on all threads every 5s. Restarts them if they crash. |
 
 ---
 
-## Phase 3: Web Automation Layer
+## 4. Automation Layer (Verification Logic)
 
-**Goal:** Automate browser to activate kill switch
+The system now implements a **"Trust but Verify"** model.
 
-### 3A: Gmail OTP Fetcher
-
-|File|Function|
-|---|---|
-|`web_automation/gmail_otp.py`|`fetch_otp(email)` → returns latest OTP from inbox|
-
-**Approach:**
-
-- Use Gmail API with OAuth
-- Search for recent emails from Kotak
-- Extract OTP using regex
-
-### 3B: Kotak Web Login
-
-|File|Function|
-|---|---|
-|`web_automation/login.py`|`login_to_neo(creds)` → returns logged-in browser page|
-
-**Flow:**
-
-1. Open https://neo.kotaksecurities.com
-2. Enter mobile/UCC
-3. Wait for OTP email → call `fetch_otp()`
-4. Enter OTP
-5. Enter MPIN
-6. Return authenticated page
-
-### 3C: Kill Switch Executor
-
-|File|Function|
-|---|---|
-|`web_automation/kill_switch.py`|`execute_kill_switch(page)` → clicks kill switch, returns success|
-
-**Flow:**
-
-1. Navigate to positions/settings
-2. Find kill switch button (use Playwright codegen to get selectors)
-3. Click and confirm
-4. Verify success
-
-**Phase 3 Success Criteria:**
-
-- [ ] Can fetch OTP from Gmail automatically
-- [ ] Can login to Kotak Neo web without manual input
-- [ ] Can trigger kill switch via browser automation
+*   **Browser:** Playwright script reads dynamic steps from `config.json`. Supports Headless/Headed modes.
+*   **Verification:**
+    *   **Pre-Kill:** Gmail OTP Listener (for Login).
+    *   **Post-Kill:** Gmail Header Scanner (`automate_utils.py`). Looks for email from Kotak with subject "Kill Switch Activated".
+*   **Result:**
+    *   **Verified:** Lock Account for Day.
+    *   **Unverified:** Warning status, allows Reset.
 
 ---
 
-## Phase 4: Main Orchestrator + GUI (Optional)
+## 5. GUI Architecture (Event-Driven)
 
-### main.py - Core Loop
+The GUI does not run logic; it reflects the state of the Engine.
 
-```python
-def main():
-    # Load config
-    config = load_config()
-    creds = load_credentials()
-    
-    # Authenticate API
-    client = fetch_client(creds)
-    
-    # Main monitoring loop
-    while True:
-        positions = get_positions(client)
-        orders = get_orders(client)
-        quotes = get_ltp(client, extract_tokens(positions))
-        
-        mtm = calculate_mtm(positions, quotes)
-        sl_hit = is_sl_hit(orders)
-        
-        if should_trigger(mtm, sl_hit, config):
-            # Execute kill switch
-            page = login_to_neo(creds)
-            execute_kill_switch(page)
-            log("KILL SWITCH ACTIVATED")
-            break
-        
-        sleep(2)  # Poll every 2 seconds
-```
-
-### GUI (Optional)
-
-- Display live MTM
-- Show positions summary
-- Manual trigger button
-- Status indicator (Active/Triggered)
-
-**Phase 4 Success Criteria:**
-
-- [ ] Full loop runs without errors
-- [ ] Kill switch triggers correctly on test conditions
-- [ ] System handles API errors gracefully
+*   **Data Binding:** The GUI pulls data from `engine.state` (RAM) using the thread lock.
+*   **Actions:** Buttons (Start/Stop, Save) trigger methods in `engine.py`.
+*   **Safety:**
+    *   **Input Validation:** `risk_config.py` prevents saving invalid numbers.
+    *   **Credential Masking:** `accounts.py` hides passwords by default.
+    *   **Threaded Saving:** "Save" buttons run in background threads to prevent UI freezing.
 
 ---
 
-## Config Files
+## 6. Key Workflows
 
-### source/config.json
+### A. The Startup Sequence
+1.  `main.py` calls `load_registry`.
+2.  `TradeEngine` initialized.
+3.  `utils/initialize.py` checks `config.json` for `kill_history`.
+    *   If Date != Today: **Reset Lock**.
+    *   If Date == Today: **Set Lock Flag**.
+4.  GUI Launches.
 
-```json
-{
-  "mtm_limit": 10000,
-  "poll_interval_seconds": 2,
-  "auto_square_off_hedges": false,
-  "kill_switch_enabled": true,
-  "log_level": "INFO"
-}
-```
+### B. The Kill Sequence
+1.  **Risk Service** detects MTM Breach + SL Hit.
+2.  Sets `signals['trigger_kill'] = True`.
+3.  **Kill Service** wakes up:
+    *   **Thread A:** Calls `kotak_api.exit_trade`.
+    *   **Thread B:** Calls `web_automation.automate`.
+4.  Browser closes. Status updates to `KILLED (VERIFYING)`.
+5.  **Async Worker** polls Gmail for 5 minutes.
+6.  If Email found -> Write to Disk -> Status `KILLED (VERIFIED)`.
 
-### source/credentials.json
-
-```json
-{
-  "consumer_key": "ec739c67-b186-42c1-b254-9456edf9f264",
-  "ucc": "XARGA",
-  "mobile_number": "+919310926729",
-  "mpin": "251802",
-  "totp_secret": "TRC5ARJYNMHYD7WNCJIR4RMOXE",
-  "gmail_email": "your@gmail.com"
-}
-```
-
----
-
-## Development Order
-
-|Phase|Modules|Estimated Time|
-|---|---|---|
-|1|positions.py, orders.py, quotes.py|1 day|
-|2|mtm.py, stop_loss.py, kill_switch_logic.py|1 day|
-|3|gmail_otp.py, login.py, kill_switch.py|2 days|
-|4|main.py integration, testing|1 day|
-
----
-
-## Testing Strategy
-
-1. **Phase 1:** Print raw API responses, verify data structure
-2. **Phase 2:** Test with mock data, compare MTM with broker
-3. **Phase 3:** Run Playwright in headed mode, watch automation
-4. **Phase 4:** Dry-run (log instead of executing kill switch)
-
----
-
-## Notes
-
-- No `__init__.py` files needed - use direct imports
-- Keep each module under 100 lines
-- Log everything to file for audit trail
-- Add `dry_run` flag in config for testing without executing
+### C. The Reset Sequence
+1.  User clicks **"Reset Kill Status"** in Settings.
+2.  Calls `engine.unlock_account()`.
+3.  Clears `kill_history` in RAM and Disk.
+4.  Updates Status to `IDLE`.
+5.  User can now toggle "System Active".

@@ -5,23 +5,38 @@ def sync_positions(universal_data):
     try:
         response = client.positions()
         
+        # --- STRICT VALIDATION START ---
+        if response is None:
+            raise Exception("API returned None")
+        
+        stat = response.get('stat', '').lower()
+        st_code = str(response.get('stCode', ''))
+        
         raw_positions = []
-        if response and 'data' in response and response['data']:
-            raw_positions = response['data']
+
+        if stat != 'ok':
+            # SPECIAL CASE: 5203 means "No Data Found" (User has no open/closed positions today)
+            # This is a VALID state, not an error.
+            if st_code == '5203':
+                raw_positions = [] # Valid empty list
+            else:
+                # Actual API Error (e.g. Session Expired, Backend Error)
+                raise Exception(f"API Status not OK: {response}")
+        else:
+            raw_positions = response.get('data', [])
+            if raw_positions is None: raw_positions = []
+        # --- STRICT VALIDATION END ---
 
         parsed_positions = []
 
-        # Extraction Logic
         for p in raw_positions:
             try:
-                # [Helper to avoid crashing on None types]
                 def get_val(k, d=0): return float(p.get(k, d) or 0)
                 
                 token = p.get('tok', '')
                 segment = p.get('exSeg', 'nse_fo')
                 lot_size = get_val('lotSz', 1)
                 
-                # Multipliers & Factors
                 multiplier = get_val('multiplier', 1)
                 gen_num = get_val('genNum', 1)
                 gen_den = get_val('genDen', 1)
@@ -29,7 +44,6 @@ def sync_positions(universal_data):
                 prc_den = get_val('prcDen', 1)
                 price_factor = (gen_num / gen_den) * (prc_num / prc_den)
 
-                # Quantities
                 fl_buy = get_val('flBuyQty')
                 fl_sell = get_val('flSellQty')
                 cf_buy = get_val('cfBuyQty')
@@ -40,8 +54,6 @@ def sync_positions(universal_data):
                     cf_buy /= lot_size; cf_sell /= lot_size
 
                 net_qty = (cf_buy + fl_buy) - (cf_sell + fl_sell)
-                
-                # Cost Basis
                 buy_amt = get_val('cfBuyAmt') + get_val('buyAmt')
                 sell_amt = get_val('cfSellAmt') + get_val('sellAmt')
 
@@ -59,10 +71,10 @@ def sync_positions(universal_data):
             except Exception:
                 continue
 
-        # Update Market Data + RAW DUMP
         with universal_data['sys']['lock']:
             universal_data['market']['positions'] = parsed_positions
-            universal_data['market']['raw']['positions'] = response  # <--- RAW OVERWRITE
+            universal_data['market']['raw']['positions'] = response
 
     except Exception as e:
-        log.error(f"Error syncing positions: {e}", tags=["API", "POS"])
+        # If it's a real error (Network, Auth), re-raise to trigger Backoff
+        raise e

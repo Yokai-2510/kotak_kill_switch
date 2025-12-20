@@ -1,80 +1,82 @@
 import sys
 import time
 import pyotp
-import binascii
 from neo_api_client import NeoAPI
 
 def authenticate_client(universal_data):    
     """
     Performs 2FA Login.
-    Includes Retry Logic for network stability.
-    Attaches authenticated client to ['sys']['api'].
+    Includes strict validation of credential structure.
     """
     log = universal_data['sys']['log']
-    creds = universal_data['sys']['creds']['kotak']
     user_id = universal_data.get('user_id', 'UNKNOWN')
     
     log.info(f"--- Starting Auth Sequence for {user_id} ---", tags=["AUTH"])
     
-    required_keys = ['consumer_key', 'totp_secret', 'mobile_number', 'mpin']
-    if any(not creds.get(k) for k in required_keys):
-        log.error("Missing credentials.", tags=["AUTH", "FAIL"])
-        raise ValueError("Missing Credentials")
+    # 1. READ CREDENTIALS SAFELY
+    root_creds = universal_data['sys']['creds']
+    
+    # Check if 'kotak' key exists
+    if 'kotak' in root_creds:
+        kotak_creds = root_creds['kotak']
+    else:
+        # Fallback: Check if credentials are flat (user pasted them directly without "kotak" wrapper)
+        if 'consumer_key' in root_creds:
+            log.warning("Credentials structure is flattened (missing 'kotak' wrapper). Attempting to use directly.", tags=["AUTH", "WARN"])
+            kotak_creds = root_creds
+        else:
+            raise KeyError("Credentials missing 'kotak' block and valid keys.")
 
-    # Retry Configuration
+    # 2. VALIDATE REQUIRED KEYS
+    required_keys = ['consumer_key', 'totp_secret', 'mobile_number', 'mpin']
+    missing = [k for k in required_keys if not kotak_creds.get(k)]
+    
+    if missing:
+        msg = f"Missing credential fields: {', '.join(missing)}"
+        log.error(msg, tags=["AUTH", "FAIL"])
+        raise ValueError(msg)
+
+    # 3. AUTH LOOP
     max_retries = 3
     retry_delay = 2
 
     for attempt in range(1, max_retries + 1):
         try:
-            # --- STEP 1: INITIALIZE CLIENT ---
             log.info(f"(1/4) Initializing NeoAPI Client (Attempt {attempt})...", tags=["AUTH"])
             
+            # Initialize
             client = NeoAPI(
-                consumer_key=creds['consumer_key'],
-                environment=creds.get('environment', 'prod')
+                consumer_key=kotak_creds['consumer_key'],
+                environment=kotak_creds.get('environment', 'prod')
             )
             
-            # --- STEP 2: GENERATE TOTP ---
-            # We generate fresh TOTP every attempt to avoid expiry
             log.info("(2/4) Generating TOTP...", tags=["AUTH"])
-            try:
-                clean_secret = creds['totp_secret'].replace(" ", "").strip()
-                totp = pyotp.TOTP(clean_secret).now()
-            except Exception as e:
-                # Fatal error, do not retry
-                log.critical(f"TOTP Gen Failed: {repr(e)}", tags=["AUTH", "CRITICAL"])
-                raise e
+            clean_secret = kotak_creds['totp_secret'].replace(" ", "").strip()
+            totp = pyotp.TOTP(clean_secret).now()
             
-            # --- STEP 3: LOGIN REQUEST ---
-            log.info(f"(3/4) Sending Login Request...", tags=["AUTH"])
-            login_resp = client.totp_login(
-                mobile_number=creds['mobile_number'],
-                ucc=creds['ucc'],
+            log.info("(3/4) Sending Login Request...", tags=["AUTH"])
+            client.totp_login(
+                mobile_number=kotak_creds['mobile_number'],
+                ucc=kotak_creds.get('ucc', ''),
                 totp=totp
             )
             
-            if not login_resp or (isinstance(login_resp, dict) and 'error' in str(login_resp).lower()):
-                 raise Exception(f"Login Rejected: {login_resp}")
-
-            # --- STEP 4: MPIN VALIDATION ---
             log.info("(4/4) Validating MPIN...", tags=["AUTH"])
-            validate_resp = client.totp_validate(mpin=creds['mpin'])
+            msg = client.totp_validate(mpin=kotak_creds['mpin'])
             
-            if not validate_resp or (isinstance(validate_resp, dict) and 'error' in str(validate_resp).lower()):
-                raise Exception(f"MPIN Rejected: {validate_resp}")
-                
-            # --- SUCCESS ---
+            # Basic check on response
+            if msg and isinstance(msg, dict) and 'error' in str(msg).lower():
+                 raise Exception(f"Validation Error: {msg}")
+
+            # SUCCESS
             universal_data['sys']['api'] = client
             log.info(">>> Authentication SUCCESS <<<", tags=["AUTH"])
-            return # Exit function on success
+            return 
             
         except Exception as e:
-            # Check if this is the last attempt
             if attempt == max_retries:
-                # Use repr() to avoid the "NoneType" string crash
-                log.critical(f"Auth Sequence Aborted after {max_retries} attempts: {repr(e)}", tags=["AUTH", "CRITICAL"])
+                log.critical(f"Auth Sequence Aborted: {e}", tags=["AUTH", "CRITICAL"])
                 raise e
             else:
-                log.warning(f"Auth Attempt {attempt} Failed: {repr(e)}. Retrying in {retry_delay}s...", tags=["AUTH", "RETRY"])
+                log.warning(f"Auth Attempt {attempt} Failed: {e}. Retrying...", tags=["AUTH", "RETRY"])
                 time.sleep(retry_delay)

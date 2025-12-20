@@ -4,37 +4,63 @@ import json
 from pathlib import Path
 from gui.theme import Theme
 
+# =========================================================
+#  COMPONENT: ACCOUNT SETTINGS FORM
+# =========================================================
+
 class AccountSettingsForm(ctk.CTkScrollableFrame):
     def __init__(self, parent, engine):
         super().__init__(parent, fg_color="transparent")
         self.engine = engine
         self.user_id = engine.user_id
         self.sensitive_entries = []
+        self._processing = False  # Lock UI updates during manual actions
         
+        # Grid Layout
         self.grid_columnconfigure(0, weight=1)
+
+        # --- SECTION 1: CONTROL PANEL ---
+        self._build_header("ENGINE CONTROL", 0)
         
-        # --- HEADER ---
-        self._build_header("IDENTITY & CONTROL", 0)
-        self.card_id = ctk.CTkFrame(self, fg_color=Theme.BG_CARD, border_width=1, border_color=Theme.BORDER)
-        self.card_id.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 20))
+        self.card_ctrl = ctk.CTkFrame(self, fg_color=Theme.BG_CARD, border_width=1, border_color=Theme.BORDER)
+        self.card_ctrl.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 20))
+        self.card_ctrl.grid_columnconfigure(1, weight=1)
         
-        self.card_id.grid_columnconfigure(1, weight=1)
-        
-        ctk.CTkLabel(self.card_id, text="Alias:", font=Theme.FONT_BODY, text_color=Theme.TEXT_WHITE).grid(row=0, column=0, padx=(20, 10), pady=15, sticky="w")
-        self.entry_name = ctk.CTkEntry(self.card_id, placeholder_text="Name", height=30)
-        self.entry_name.grid(row=0, column=1, padx=(0, 20), pady=15, sticky="ew")
+        # Alias
+        ctk.CTkLabel(self.card_ctrl, text="Account Alias:", font=Theme.FONT_BODY, text_color=Theme.TEXT_WHITE).grid(row=0, column=0, padx=20, pady=15, sticky="w")
+        self.entry_name = ctk.CTkEntry(self.card_ctrl, placeholder_text="e.g. Main Portfolio", height=30)
+        self.entry_name.grid(row=0, column=1, padx=(0, 10), pady=15, sticky="ew")
 
-        # Refresh Button
-        self.btn_refresh = ctk.CTkButton(self.card_id, text="⟳", width=40, fg_color="#4b5563", command=self.refresh_session)
-        self.btn_refresh.grid(row=0, column=2, padx=(0, 5), pady=15, sticky="e")
+        # Refresh Session Button
+        self.btn_refresh = ctk.CTkButton(
+            self.card_ctrl, text="↻", width=40, height=30,
+            fg_color="#4b5563", hover_color="#374151",
+            command=self.refresh_session
+        )
+        self.btn_refresh.grid(row=0, column=2, padx=(5, 10), pady=15)
 
-        self.sw_show_creds = ctk.CTkSwitch(self.card_id, text="Show Secrets", font=("Arial", 11, "bold"), progress_color=Theme.ACCENT_ORANGE, command=self.toggle_visibility)
-        self.sw_show_creds.grid(row=0, column=3, padx=(0, 15), pady=15, sticky="e")
+        # START / STOP Engine Button
+        self.btn_engine = ctk.CTkButton(
+            self.card_ctrl, 
+            text="START ENGINE", 
+            font=("Arial", 12, "bold"),
+            fg_color=Theme.ACCENT_GREEN, 
+            hover_color="#059669",
+            height=30, width=120,
+            command=self.on_engine_toggle
+        )
+        self.btn_engine.grid(row=0, column=3, padx=(10, 20), pady=15)
 
-        self.sw_active = ctk.CTkSwitch(self.card_id, text="System Active", font=("Arial", 12, "bold"), progress_color=Theme.ACCENT_GREEN, command=self.on_active_toggle)
-        self.sw_active.grid(row=0, column=4, padx=(0, 20), pady=15, sticky="e")
+        # --- SECTION 2: GLOBAL VISIBILITY ---
+        self.vis_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.vis_frame.grid(row=2, column=0, sticky="ew", padx=15, pady=(0, 5))
+        self.sw_show_creds = ctk.CTkSwitch(
+            self.vis_frame, text="Show Secrets", font=("Arial", 11, "bold"),
+            progress_color=Theme.ACCENT_ORANGE, command=self.toggle_visibility
+        )
+        self.sw_show_creds.pack(side="right")
 
-        # --- CREDENTIALS ---
+        # --- SECTION 3: BROKER CREDENTIALS ---
         self._build_header("KOTAK NEO CREDENTIALS", 3)
         self.card_broker = ctk.CTkFrame(self, fg_color=Theme.BG_CARD, border_width=1, border_color=Theme.BORDER)
         self.card_broker.grid(row=4, column=0, sticky="ew", padx=10, pady=(0, 20))
@@ -47,22 +73,39 @@ class AccountSettingsForm(ctk.CTkScrollableFrame):
         self.entry_mpin = self._add_field(self.card_broker, 4, "MPIN", mask=True)
         self.entry_secret = self._add_field(self.card_broker, 5, "TOTP Secret", mask=True)
 
-        self._build_header("GMAIL CONFIGURATION", 5)
-        self.card_gmail = ctk.CTkFrame(self, fg_color=Theme.BG_CARD, border_width=1, border_color=Theme.BORDER)
-        self.card_gmail.grid(row=6, column=0, sticky="ew", padx=10, pady=(0, 20))
-        self.card_gmail.grid_columnconfigure(1, weight=1)
+        # --- SECTION 4: NOTIFICATIONS ---
+        self._build_header("NOTIFICATIONS & ALERTS", 5)
+        self.card_notify = ctk.CTkFrame(self, fg_color=Theme.BG_CARD, border_width=1, border_color=Theme.BORDER)
+        self.card_notify.grid(row=6, column=0, sticky="ew", padx=10, pady=(0, 20))
+        self.card_notify.grid_columnconfigure(1, weight=1)
 
-        self.entry_email = self._add_field(self.card_gmail, 0, "Email Address", mask=True)
-        self.entry_app_pass = self._add_field(self.card_gmail, 1, "App Password", mask=True)
-        self.entry_filter = self._add_field(self.card_gmail, 2, "Sender Filter")
+        self.entry_tg_token = self._add_field(self.card_notify, 0, "Telegram Bot Token", mask=True)
+        self.entry_tg_chat = self._add_field(self.card_notify, 1, "Telegram Chat ID", mask=True)
+        
+        ctk.CTkFrame(self.card_notify, height=1, fg_color="#2a2a2a").grid(row=2, column=0, columnspan=2, sticky="ew", padx=15, pady=10)
+        
+        self.entry_email = self._add_field(self.card_notify, 3, "Gmail Address", mask=True)
+        self.entry_app_pass = self._add_field(self.card_notify, 4, "Gmail App Password", mask=True)
+        self.entry_filter = self._add_field(self.card_notify, 5, "Sender Filter")
 
-        self.btn_save = ctk.CTkButton(self, text="SAVE CREDENTIALS", font=("Arial", 14, "bold"), fg_color=Theme.ACCENT_BLUE, hover_color="#1d4ed8", height=45, command=self.save_data)
+        # --- SAVE BUTTON ---
+        self.btn_save = ctk.CTkButton(
+            self, text="SAVE CONFIGURATION", font=("Arial", 14, "bold"),
+            fg_color=Theme.ACCENT_BLUE, hover_color="#1d4ed8", height=45,
+            command=self.save_data
+        )
         self.btn_save.grid(row=7, column=0, sticky="ew", padx=10, pady=20)
 
         self.load_data()
-        self.update_toggle_state()
+        self.update_engine_ui() 
+        self._status_monitor_loop() # Start the Auto-Refresh Loop
 
-    # ... (Helpers: _build_header, _add_field, toggle_visibility, load_data - Same as before) ...
+    def _status_monitor_loop(self):
+        """Polls engine status to update button if changed externally (e.g. from Dashboard)."""
+        if not self._processing:
+            self.update_engine_ui()
+        self.after(1000, self._status_monitor_loop)
+
     def _build_header(self, text, row):
         ctk.CTkLabel(self, text=text, font=("Arial", 12, "bold"), text_color=Theme.ACCENT_BLUE).grid(row=row, column=0, sticky="w", padx=15, pady=(5, 5))
 
@@ -84,6 +127,8 @@ class AccountSettingsForm(ctk.CTkScrollableFrame):
         creds = self.engine.state['sys']['creds']
         kotak = creds.get('kotak', {})
         gmail = creds.get('gmail', {})
+        telegram = creds.get('telegram', {})
+
         self.entry_name.insert(0, config.get('account_name', self.user_id))
         self.entry_mobile.insert(0, kotak.get('mobile_number', ''))
         self.entry_ucc.insert(0, kotak.get('ucc', ''))
@@ -91,52 +136,53 @@ class AccountSettingsForm(ctk.CTkScrollableFrame):
         self.entry_password.insert(0, kotak.get('login_password', ''))
         self.entry_mpin.insert(0, kotak.get('mpin', ''))
         self.entry_secret.insert(0, kotak.get('totp_secret', ''))
+        self.entry_tg_token.insert(0, telegram.get('bot_token', ''))
+        self.entry_tg_chat.insert(0, telegram.get('chat_id', ''))
         self.entry_email.insert(0, gmail.get('email', ''))
         self.entry_app_pass.insert(0, gmail.get('google_app_password', ''))
         self.entry_filter.insert(0, gmail.get('sender_filter', ''))
 
-    def update_toggle_state(self):
+    def update_engine_ui(self):
         is_locked = self.engine.state['signals'].get('is_locked_today', False)
         is_active = self.engine.state['signals']['system_active']
 
-        if is_active:
-            self.sw_active.select()
-            if is_locked:
-                self.sw_active.configure(state="normal", text="LOCKED (VIEW ONLY)", progress_color=Theme.ACCENT_ORANGE)
-            else:
-                self.sw_active.configure(state="normal", text="SYSTEM RUNNING", progress_color=Theme.ACCENT_GREEN)
+        if is_locked:
+            self.btn_engine.configure(text="LOCKED", fg_color=Theme.ACCENT_RED, state="disabled")
+        elif is_active:
+            self.btn_engine.configure(text="STOP ENGINE", fg_color=Theme.ACCENT_RED, hover_color="#991b1b", state="normal")
         else:
-            self.sw_active.deselect()
-            # If locked but stopped, allow starting (into Observer Mode)
-            if is_locked:
-                self.sw_active.configure(state="normal", text="LOCKED (START VIEWER)", progress_color=Theme.ACCENT_RED)
-            else:
-                self.sw_active.configure(state="normal", text="SYSTEM STOPPED", progress_color=Theme.ACCENT_RED)
+            self.btn_engine.configure(text="START ENGINE", fg_color=Theme.ACCENT_GREEN, hover_color="#059669", state="normal")
 
-    def on_active_toggle(self):
-        is_turning_on = bool(self.sw_active.get())
-        self.sw_active.configure(state="disabled", text="PROCESSING...")
+    def on_engine_toggle(self):
+        if self.engine.state['signals'].get('is_locked_today', False):
+            self.update_engine_ui()
+            return
+
+        is_currently_active = self.engine.state['signals']['system_active']
+        
+        self._processing = True # Lock Auto-Refresh
+        self.btn_engine.configure(state="disabled", text="WORKING...")
+        
         def worker():
-            if is_turning_on:
+            if not is_currently_active:
                 self.save_data_logic() 
                 self.engine.start_session()
             else:
                 self.engine.stop_session()
             self.after(0, self._post_toggle_ui)
+
         threading.Thread(target=worker, daemon=True).start()
 
     def _post_toggle_ui(self):
-        self.sw_active.configure(state="normal")
-        self.update_toggle_state()
+        self._processing = False # Unlock
+        self.update_engine_ui()
         stage = self.engine.state['status'].get('stage')
         if stage == "AUTH_ERR":
-            self.sw_active.deselect()
-            self.sw_active.configure(text="AUTH FAILED", progress_color=Theme.ACCENT_RED)
+            self.btn_engine.configure(text="AUTH FAILED", fg_color=Theme.ACCENT_ORANGE)
 
     def refresh_session(self):
         self.engine.refresh_session()
 
-    # ... (Save logic unchanged) ...
     def save_data(self):
         self.btn_save.configure(text="SAVING...", state="disabled")
         threading.Thread(target=self._save_worker, daemon=True).start()
@@ -144,7 +190,7 @@ class AccountSettingsForm(ctk.CTkScrollableFrame):
     def _save_worker(self):
         self.save_data_logic()
         self.after(0, lambda: self.btn_save.configure(text="SAVED!", state="normal", fg_color=Theme.ACCENT_GREEN))
-        self.after(2000, lambda: self.btn_save.configure(text="SAVE CREDENTIALS", fg_color=Theme.ACCENT_BLUE))
+        self.after(2000, lambda: self.btn_save.configure(text="SAVE CONFIGURATION", fg_color=Theme.ACCENT_BLUE))
 
     def save_data_logic(self):
         new_name = self.entry_name.get().strip() or self.user_id
@@ -162,13 +208,18 @@ class AccountSettingsForm(ctk.CTkScrollableFrame):
             "google_app_password": self.entry_app_pass.get().strip(),
             "sender_filter": self.entry_filter.get().strip()
         }
+        tg_data = {
+            "bot_token": self.entry_tg_token.get().strip(),
+            "chat_id": self.entry_tg_chat.get().strip()
+        }
         with self.engine.state['sys']['lock']:
             self.engine.state['sys']['config']['account_name'] = new_name
             self.engine.state['sys']['creds']['kotak'].update(kotak_data)
             self.engine.state['sys']['creds']['gmail'].update(gmail_data)
-        self._write_to_disk(new_name, kotak_data, gmail_data)
+            self.engine.state['sys']['creds']['telegram'] = tg_data
+        self._write_to_disk(new_name, kotak_data, gmail_data, tg_data)
 
-    def _write_to_disk(self, name, k_data, g_data):
+    def _write_to_disk(self, name, k_data, g_data, t_data):
         c_path = Path("source/config.json")
         try:
             with open(c_path, 'r') as f: c_data = json.load(f)
@@ -183,13 +234,14 @@ class AccountSettingsForm(ctk.CTkScrollableFrame):
             if self.user_id in cr_data:
                 cr_data[self.user_id]['kotak'].update(k_data)
                 cr_data[self.user_id]['gmail'].update(g_data)
+                cr_data[self.user_id]['telegram'] = t_data
                 with open(cr_path, 'w') as f: json.dump(cr_data, f, indent=2)
         except: pass
 
 class AccountsPage(ctk.CTkFrame):
     def __init__(self, parent, engines):
         super().__init__(parent, fg_color="transparent")
-        ctk.CTkLabel(self, text="Account Manager", font=Theme.FONT_HEADER, text_color=Theme.TEXT_WHITE).pack(anchor="w", padx=20, pady=(20, 10))
+        ctk.CTkLabel(self, text="Account & Engine Manager", font=Theme.FONT_HEADER, text_color=Theme.TEXT_WHITE).pack(anchor="w", padx=20, pady=(20, 10))
         self.tab_view = ctk.CTkTabview(self, fg_color="transparent")
         self.tab_view.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         for eng in engines:

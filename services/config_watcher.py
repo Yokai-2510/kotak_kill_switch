@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 
+
 def run_config_watcher(universal_data):
     """
     Monitors 'config.json'. Reloads ONLY the specific User's section.

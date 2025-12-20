@@ -11,34 +11,26 @@ from services.data_service import run_data_service
 from services.risk_service import run_risk_service
 from services.kill_switch_service import run_kill_switch_service
 from services.config_watcher import run_config_watcher
-from services.snapshot_service import run_snapshot_service
 
 class TradeEngine:
     def __init__(self, user_id):
         self.user_id = user_id
-        # Load initial state
         self.state = create_bot_state(user_id) 
         self.log = self.state['sys']['log']
         
-        # Define Service Groups
         self.core_services = {
             "Data": run_data_service,
-            "Config": run_config_watcher,
-            "Snap": run_snapshot_service
+            "Config": run_config_watcher
         }
         self.active_services = {
             "Risk": run_risk_service,
             "Kill": run_kill_switch_service
         }
 
-        # Auto-start logic (Legacy config check)
         if self.state['sys']['config'].get('account_active', False):
              self.start_session()
 
     def start_session(self):
-        """
-        Starts the engine. If locked, starts in 'Observer Mode' (No Risk/Kill).
-        """
         if self.state['signals']['system_active']:
             self.log.warning("Session already active.", tags=["SYS"])
             return
@@ -49,7 +41,6 @@ class TradeEngine:
         self.log.info(f">>> STARTING SESSION ({mode_str}) <<<", tags=["SYS", "START"])
         self._reload_credentials() 
         
-        # Reset Flags
         with self.state['sys']['lock']:
             self.state['signals']['system_active'] = True
             # Only reset kill flags if NOT locked
@@ -58,10 +49,10 @@ class TradeEngine:
                 self.state['signals']['kill_executed'] = False
             
             self.state['status']['error_message'] = None
+            self.state['status']['data_stale'] = False
             self.state['status']['stage'] = "BOOTING"
             self.state['status']['session_start_time'] = time.time()
 
-        # 1. Authenticate
         try:
             authenticate_client(self.state)
             self.state['status']['stage'] = "LOCKED (VIEW ONLY)" if is_locked else "RUNNING"
@@ -71,26 +62,20 @@ class TradeEngine:
             self.state['status']['stage'] = "AUTH_ERR"
             return
 
-        # 2. Spawn Core Services (Always Run)
         for name, func in self.core_services.items():
             self._spawn_thread(func, name)
 
-        # 3. Spawn Active Services (Only if NOT locked)
         if not is_locked:
             for name, func in self.active_services.items():
                 self._spawn_thread(func, name)
         else:
-            self.log.warning("Risk & Kill services disabled due to Daily Lock.", tags=["SYS", "LOCK"])
+            self.log.warning("Risk & Kill services disabled (Daily Lock).", tags=["SYS", "LOCK"])
 
-        # 4. Start Watchdog
         self._spawn_thread(self._watchdog_loop, "Watchdog")
-
         self.log.info(f"Session Started in {mode_str}.", tags=["SYS", "OK"])
 
     def stop_session(self):
-        """Signals all threads to stop."""
         if not self.state['signals']['system_active']: return
-
         self.log.info(">>> STOPPING SESSION <<<", tags=["SYS", "STOP"])
         
         with self.state['sys']['lock']:
@@ -109,28 +94,42 @@ class TradeEngine:
             self.state['status']['session_start_time'] = None
 
     def refresh_session(self):
-        """Re-authenticates the API client without stopping services."""
         if not self.state['signals']['system_active']:
             self.log.warning("Cannot refresh inactive session.", tags=["SYS"])
             return
-
         self.log.info("Refreshing API Session...", tags=["SYS", "REFRESH"])
         threading.Thread(target=self._refresh_worker, daemon=True).start()
 
     def _refresh_worker(self):
         try:
             self._reload_credentials()
-            authenticate_client(self.state) # This updates state['sys']['api'] in place
+            authenticate_client(self.state) 
             self.log.info("API Session Refreshed Successfully.", tags=["SYS", "REFRESH"])
         except Exception as e:
             self.log.error(f"Session Refresh Failed: {e}", tags=["SYS", "ERR"])
 
     def unlock_account(self):
-        """Manually clears lock."""
+        """
+        Manually clears the daily lock AND resets execution flags.
+        Ensures Dashboard recognizes the account as 'Alive' again immediately.
+        """
         self.log.info("Manual Lock Override.", tags=["SYS", "RESET"])
         with self.state['sys']['lock']:
+            # 1. Clear Lock
             self.state['signals']['is_locked_today'] = False
+            
+            # 2. Clear Kill Flags (CRITICAL FIX)
+            self.state['signals']['trigger_kill'] = False
+            self.state['signals']['kill_executed'] = False
+            
+            # 3. Update Stage (If currently running, promote to RUNNING)
+            curr_stage = str(self.state['status'].get('stage', ''))
+            if self.state['signals']['system_active'] and ("LOCKED" in curr_stage or "KILLED" in curr_stage):
+                 self.state['status']['stage'] = "RUNNING"
+            
+            # 4. Clear History
             self.state['sys']['config']['kill_history'] = {"locked_date": None, "timestamp": None, "verified": False}
+            
         update_kill_history_disk(self.user_id, verified=False)
 
     def _spawn_thread(self, target_func, name):
@@ -143,27 +142,20 @@ class TradeEngine:
         log = state['sys']['log']
         while state['signals']['system_active']:
             time.sleep(5) 
-            
             is_locked = state['signals'].get('is_locked_today', False)
-            
             with state['sys']['lock']:
                 threads = state['sys']['threads']
             
-            # Check Core Services
             for name, func in self.core_services.items():
                 if name not in threads or not threads[name].is_alive():
                     if state['signals']['system_active']:
                         log.warning(f"Core Service '{name}' died! Restarting...", tags=["SYS", "FIX"])
                         self._spawn_thread(func, name)
 
-            # Check Active Services (Only if NOT locked)
             if not is_locked:
                 for name, func in self.active_services.items():
                     if name not in threads or not threads[name].is_alive():
-                        # Don't restart Kill service if it already finished successfully
-                        if name == "Kill" and state['signals']['kill_executed']:
-                            continue
-                        
+                        if name == "Kill" and state['signals']['kill_executed']: continue
                         if state['signals']['system_active']:
                             log.warning(f"Active Service '{name}' died! Restarting...", tags=["SYS", "FIX"])
                             self._spawn_thread(func, name)
@@ -171,6 +163,10 @@ class TradeEngine:
     def _reload_credentials(self):
         try:
             path = Path(__file__).parent.parent / "source" / "credentials.json"
+            if not path.exists():
+                self.log.error("credentials.json not found!", tags=["SYS", "ERR"])
+                return
+                
             with open(path, 'r') as f:
                 data = json.load(f)
                 if self.user_id in data:
@@ -178,7 +174,6 @@ class TradeEngine:
         except Exception as e:
             self.log.error(f"Cred Reload Failed: {e}", tags=["SYS", "WARN"])
 
-    # Legacy wrappers
     def authenticate(self): pass 
     def run_preflight_check(self): pass
     def start_services(self): pass

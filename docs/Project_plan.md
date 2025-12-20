@@ -37,4 +37,4 @@
 
 **Ready to start Phase 1?**
 I will generate the file structure, JSON configs, and the Init/Auth modules.
-(I will assume standard API fields for now and we can patch `kotak_api` in Phase 2 if names differ).
+			(I will assume standard API fields for now and we can patch `kotak_api` in Phase 2 if names differ).

@@ -1,21 +1,26 @@
 {
   "USER_01": {
-    "account_active": true,
+    "account_active": false,
     "account_name": "Eshaan Test1",
     "kill_switch": {
       "enabled": true,
-      "mtm_limit": 20000.0,
+      "mtm_limit": 10000.0,
       "sell_order_exit_confirmation": true,
       "auto_square_off": true
     },
     "kill_history": {
-      "locked_date": null,
-      "timestamp": "2025-12-11 01:46:16",
-      "verified": false
+      "locked_date": "2025-12-20",
+      "timestamp": "2025-12-20 22:10:15",
+      "verified": true
     },
     "monitoring": {
-      "poll_interval_seconds": 5,
-      "off_market_interval_seconds": 60
+      "poll_interval_seconds": 1,
+      "off_market_interval_seconds": 60,
+      "retry_strategy": {
+        "max_retries": 5,
+        "base_delay": 2,
+        "max_delay": 10
+      }
     },
     "logging": {
       "level": "INFO",
@@ -26,13 +31,14 @@
     "gmail": {
       "timeout_seconds": 90,
       "otp_subject": "OTP",
-      "kill_subject": "Kill Switch Activated"
+      "kill_subject": "Kill Switch Activated",
+      "enable_verification": false
     },
     "web_automation": {
       "login_url": "https://neo.kotaksecurities.com/Login",
       "search_timeout": 30000,
       "browser": {
-        "headless": true,
+        "headless": false,
         "viewport": {
           "width": 1366,
           "height": 768
@@ -210,6 +216,11 @@
           "wait": 1.0
         }
       ]
+    },
+    "notifications": {
+      "enable_telegram": false,
+      "notify_on_kill": true,
+      "notify_on_mtm_breach": true
     }
   },
   "USER_02": {
