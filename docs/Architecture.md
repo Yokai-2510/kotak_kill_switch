@@ -1,201 +1,113 @@
-## 1. **Objective**
 
-The **Automated Trading Kill Switch System** is a Python-based risk management tool designed to **automatically stop trading activity** when the trader’s **daily Mark-to-Market (MTM)** loss exceeds a defined limit, _and_ the **stop-loss (SL)** on a sold position is hit.
+## **Project Architecture: Automated Trading Kill Switch System**
 
-This ensures trading halts **only after a risk-defined loss scenario occurs**, protecting capital and enforcing discipline.
+### **1. Objective**
 
----
+To create a robust, automated risk management system that protects trading capital by enforcing a strict daily loss protocol. The system will **automatically disable trading** for one or more accounts when **two specific conditions are met simultaneously**:
 
-## 2. **Background — Strategy Context**
+1.  The user's **daily Mark-to-Market (MTM) loss** exceeds a pre-defined limit.
+2.  A **stop-loss (SL) order on a primary sold option position** has been executed.
 
-The trader’s core strategy:
-
-- **Short ATM option** (income leg)
-- **Buy far OTM hedge** (risk protection)
-- **Manage losses** through **stop-losses on sold positions**    
-- **Control overtrading** by enforcing a daily MTM limit
-
-
-Hence, the Kill Switch acts as a **final safety brake**, automatically locking the trading system when both:
-
-1. A stop-loss on the sold position is hit
-2. Daily MTM loss ≥ predefined threshold
+This dual-condition logic ensures the system only activates after a significant, confirmed loss event, preventing premature shutdowns during normal market volatility.
 
 ---
 
-## 3. **System Flow Overview**
+### **2. Core Logic & System Flow**
 
-### 🔁 High-Level Flow
+The system operates in a continuous monitoring loop for each active user engine.
 
-1. **Fetch positions** from Kotak Neo API    
-2. **Compute MTM** (mark-to-market) using current market prices
-3. **Check stop-loss hit** on sold positions
-4. If **MTM ≥ limit** and **sold position SL hit** → **Trigger Kill Switch**
-5. **Square off hedges (optional)**
-6. **Logout and disable account trading** (via browser automation)
-7. **Replicate Kill Switch** for all linked accounts
+#### **High-Level Flow:**
 
----
-
-## 4. **Kill Switch Logic**
-
-### Step-by-Step Logic:
-
-1. **Get All Positions**    
-    - Use `client.positions()` API        
-    - Retrieve both **open and closed** option positions for the current trading day
-
-2. **Calculate Daily MTM (Mark-to-Market)**
-    - For each position:
-        - Compute **Total Buy Qty**, **Total Sell Qty**, **Net Qty**
-        - Compute **Total Buy Amt**, **Total Sell Amt**
-        - Fetch **LTP (Last Traded Price)** via the Quote API
-        - Calculate **PnL** as:
-            PnL = (Total Sell Amt - Total Buy Amt) 
-                  + (Net Qty * LTP * multiplier * (genNum/genDen) * (prcNum/prcDen))
-                  
-    - Sum all individual **PnL values** to get total **Daily MTM**
-
-3. **Monitor Stop-Loss (SL) Status**    
-    - Track the **sold option’s stop-loss order** status using the Orders API
-    - Identify if any **stop-loss has been executed** (i.e., exited a sold leg)
-
-4. **Trigger Condition**    
-    - Kill Switch is triggered **only when both** are true:
-        - `Daily MTM Loss ≥ Threshold (set via GUI)`
-        - `Stop-Loss on Sold Position = Executed`
-
-5. **Execute Kill Switch**    
-    - **Trigger via Selenium/Playwright** automation in the **Kotak Neo web terminal** (since the API doesn’t offer a kill switch endpoint).        
-    - **Deactivate trading** on the account.
-
-6. **Optional Post-Actions**
-    - **Square off all hedge positions (OTM options)**.
-    - **Logout via API**, ensuring that the session is terminated across web + mobile.
-    - Apply the **same kill switch command to all linked trading accounts**.        
+1.  **Fetch Account Data:** Continuously pull open positions and the day's order history from the Kotak Neo API.
+2.  **Calculate Real-Time MTM:** Compute the total daily MTM by combining realized PnL from closed positions and unrealized PnL from open positions (using live LTPs).
+3.  **Monitor SL Status:** Analyze the order history to detect if a stop-loss order for a primary sold position has been `EXECUTED` or `COMPLETE`.
+4.  **Evaluate Trigger Conditions:** On every cycle, check if `(Daily MTM <= MTM_Loss_Limit)` **AND** `(Sold_Position_SL_Hit == True)`.
+5.  **Execute Kill Switch:** If both conditions are true, trigger the automated kill switch sequence.
+6.  **Post-Kill Actions:** Automatically square off any remaining hedge positions (optional), perform a definitive API logout, and send a notification.
+7.  **Synchronization:** Replicate the kill switch command across all linked user accounts if configured.
 
 ---
 
-## 5. **Kill Switch Flow (Summary Table)**
+### **3. Technical Architecture**
 
-| Step | Action                       | Source              | Trigger Condition                | Result                    |
-| ---- | ---------------------------- | ------------------- | -------------------------------- | ------------------------- |
-| 1    | Fetch all positions          | Kotak Neo API       | Periodic (e.g., every 2 seconds) | Latest position data      |
-| 2    | Compute MTM                  | Custom logic        | After fetching positions         | Current total profit/loss |
-| 3    | Check SL hit                 | Orders API          | Real-time                        | Detect SL execution       |
-| 4    | Compare MTM vs threshold     | GUI input           | Continuous                       | Determine breach          |
-| 5    | Activate Kill Switch         | Selenium/Playwright | MTM ≥ limit + SL hit             | Block trading             |
-| 6    | Logout + Optional hedge exit | API                 | Immediately after kill           | Ensure lockout            |
-| 7    | Apply to other accounts      | Internal logic      | After main account kill          | Synchronize kill          |
+The system is built on a modular, multi-threaded Python backend with a desktop GUI for control and monitoring.
 
----
-
-## 6. **User Interface (GUI)**
-
-A desktop-based GUI (using **Tkinter** or **PyQt**) will allow the user to:
-
-### 🔧 Configuration:
-
-- Set **daily MTM loss limit**
-- Add/manage **linked accounts**
-- Choose **whether to auto-square-off hedges**    
-- Enable/disable **Kill Switch automation**
-
-
-### 📊 Live Monitoring:
-
-- Display **current MTM** (total and per-account)
-- Show **positions summary**
-- Display **Kill Switch status** (Active / Triggered)
-- Provide **manual override** options (force kill, reset)
-
-### 💬 Notifications:
-
-- Pop-up or desktop alerts when SL hits or MTM breaches limit
-- Kill Switch confirmation before execution (optional toggle)    
+| Layer | Technology / Module | Purpose & Key Responsibilities |
+| :--- | :--- | :--- |
+| **Orchestration** | `services/engine.py` | The central `TradeEngine` class for each user. Manages the lifecycle of all services. |
+| **API Interface** | `kotak_api/client_login.py` | A self-healing `AuthenticatedApiClient` class. Handles all API communication, including login, retries, and automatic re-authentication on session expiry. **This is the single point of contact with the broker.** |
+| **Automation Layer** | `web_automation/` (Playwright) | Handles browser automation tasks that are not available via API, specifically logging into the Kotak Neo web terminal to physically activate the "Kill Switch" feature. |
+| **Core Services** | `services/` | A collection of background threads, each with a single responsibility: |
+| | `risk_service.py` | Fetches positions/orders via the API client, calculates MTM, and monitors for SL hits. Updates the shared state. |
+| | `kill_switch_service.py`| Monitors the shared state for the trigger signal from the Risk Service. When triggered, it invokes the Automation Layer to execute the kill switch. |
+| | `config_watcher.py` | Monitors the user's config file for real-time changes (e.g., updating the MTM limit) and reloads them without a restart. |
+| **User Interface** | `gui/` (Tkinter / PyQt) | Provides the main dashboard for configuration, live monitoring, and manual overrides. Interacts with the backend `TradeEngine` instances. |
+| **Configuration** | `source/USER_ID_config.json` | JSON files for storing user credentials, risk limits, API retry settings, and GUI preferences. |
+| **Utilities** | `utils/` | Helper modules for tasks like logging (`log_manager.py`) and notifications (`notifications.py`). |
 
 ---
 
-## 7. **Technical Architecture**
+### **4. Detailed Service Logic**
 
-| Layer                | Technology            | Purpose                                              |
-| -------------------- | --------------------- | ---------------------------------------------------- |
-| **Data Source**      | Kotak Neo API         | Fetch positions, orders, and quotes                  |
-| **Automation Layer** | Selenium / Playwright | Log in to Kotak Neo terminal and trigger kill switch |
-| **Backend Logic**    | Python                | MTM computation, SL monitoring, logic control        |
-| **GUI**              | Tkinter / PyQt        | User configuration and monitoring dashboard          |
-| **Persistence**      | JSON / SQLite         | Store thresholds, user preferences, account info     |
-| **Logging**          | Python Logging module | Track all actions, events, errors                    |
+#### **Risk Service (`risk_service.py`)**
+-   **Loop Interval:** Configurable (e.g., every 2-5 seconds).
+-   **Action:**
+    1.  Calls `api_client.make_api_call(client.get_positions)` to get open positions.
+    2.  Calls `api_client.make_api_call(client.get_order_report)` to get the day's orders.
+    3.  **Computes MTM:** Iterates through positions, calculates PnL using the official formula, and sums them up.
+    4.  **Checks SL Status:** Scans the order report to see if any `SL-M` or `SL` order on a sold option has a status of `COMPLETE`. Sets a flag `sl_hit_today = True` if found.
+    5.  **Updates Shared State:** Safely writes the calculated MTM, open positions, and the `sl_hit_today` flag to the main `TradeEngine` state dictionary using a thread lock.
 
----
-
-## 8. **Safety Features**
-
-- ✅ Kill Switch triggers **only once** per day
-- ✅ Repeated triggers are ignored until manually reset
-- ✅ All actions are **timestamped and logged**
-- ✅ Failsafe logout ensures no further trades
-- ✅ Graceful handling of API downtime or network issues
-
----
-
-## 9. **Logging and Audit**
-
-All key events are logged, including:
-
-- Position fetch times
-- MTM calculations
-- SL hits
-- Kill switch triggers
-- Hedge square-offs
-- Logouts
-- Errors or retries    
-
-Logs are stored with timestamps for audit and debugging.
+#### **Kill Switch Service (`kill_switch_service.py`)**
+-   **Loop Interval:** Fast (e.g., every 1 second).
+-   **State:** Holds an internal flag, `kill_switch_triggered_today = False`.
+-   **Action:**
+    1.  Reads MTM, SL status, and the user's MTM limit from the shared state.
+    2.  Checks the trigger condition: `if MTM <= mtm_limit and sl_hit_today and not kill_switch_triggered_today:`.
+    3.  If true:
+        *   Sets its internal flag `kill_switch_triggered_today = True` to prevent re-triggers.
+        *   Logs the critical event.
+        *   Calls the browser automation module to perform the web-based kill switch action.
+        *   If configured, iterates through remaining hedge positions and calls `api_client.make_api_call(client.place_order)` to square them off.
+        *   Calls `api_client.make_api_call(client.logout)`.
+        *   Calls the notification utility to send a Telegram alert.
+    4.  The service continues to run but will not trigger again for the rest of the day.
 
 ---
 
-## 10. **Deployment & Usage**
+### **5. Safety & Reliability Features**
 
-### **Setup**
-
-- Install Python dependencies (`neo_api_client`, `selenium` or `playwright`, `tkinter` / `pyqt5`)
-- Configure Kotak Neo API credentials
-- Run the GUI app and set your **MTM limit**
-
-### **During Trading**
-
-- Keep the app running
-- App will continuously monitor MTM and SL status
-- If both trigger conditions are met → **Kill Switch is executed automatically**    
+-   ✅ **Self-Healing API:** The `AuthenticatedApiClient` automatically handles session disconnects, ensuring the monitoring services remain active throughout market hours.
+-   ✅ **Atomic Trigger:** The kill switch logic is contained within a single service that uses a "trigger-once" flag (`kill_switch_triggered_today`) to guarantee it only fires once per day.
+-   ✅ **Daily Reset:** The `TradeEngine` resets all states (including `sl_hit_today` and `kill_switch_triggered_today`) at the start of each new trading day.
+-   ✅ **Configurable Retries:** All API calls are protected by a configurable retry mechanism, adding resilience against temporary network or broker API issues.
+-   ✅ **Comprehensive Logging:** All actions, state changes, API calls, and errors are timestamped and logged, creating a full audit trail.
+-   ✅ **Graceful Shutdown:** The `TradeEngine` properly manages the lifecycle of all service threads, ensuring a clean exit when the application is closed.
 
 ---
 
-## 11. **Key Design Principles**
+### **6. User Interface (GUI) - Functional Specification**
 
-- **Accuracy:** MTM calculated from all positions, updated frequently
-- **Safety:** Triggers only when both SL hit and MTM breach occur
-- **Automation:** Fully handles web terminal actions (no manual input)
-- **Scalability:** Can manage multiple accounts from one interface
-- **Transparency:** All actions visible via GUI and logged for review
+#### **Configuration Screen:**
+-   **MTM Loss Limit:** Numeric input (e.g., -10000).
+-   **Auto-Square-Off Hedges:** Checkbox (On/Off).
+-   **Delete Logs on Boot:** Checkbox (On/Off).
+-   **API Retry Settings:** Inputs for "Max Retries" and "Retry Delay".
+-   **Telegram Settings:** Inputs for "Bot Token" and "Chat ID".
+-   **Save Button:** Persists all settings to the user's JSON config file.
 
----
+#### **Dashboard / Live Monitor:**
+-   **Global Status Card:** Displays aggregated Net System P&L, Total Open Positions, and overall system status.
+-   **Per-Engine Cards:** One card for each configured user (`Eshaan Test`, `Inactive Test`, etc.). Each card displays:
+    -   User ID and Monitoring Status (`ACTIVE` / `STOPPED`).
+    -   **Current MTM:** Live updated value.
+    -   **MTM Limit:** The configured limit.
+    -   **Risk Utilization:** A progress bar showing `(Current MTM / MTM Limit) * 100`.
+    -   **SL Status:** A label showing `SAFE` or `HIT TODAY`.
+    -   **Open Positions:** A count of open positions.
+-   **Action Buttons:**
+    -   **Start/Stop Switch:** A visually distinct switch to activate or deactivate monitoring for that engine.
+    -   **Manual Kill:** A button to immediately trigger the kill switch sequence, bypassing the logic.
+    -   **Manual Exit:** A button next to each listed position (in a detailed view) to exit that specific position.
 
-## 12. **Example Scenario**
-
-|Event|Status|Result|
-|---|---|---|
-|Daily MTM = ₹9,500|SL not hit|Continue trading|
-|SL on sold leg triggers|MTM = ₹10,200|Kill Switch activates|
-|Kill Switch executed|Account logout|Trading locked for day|
-|Hedge positions squared off|Optional|Positions flattened|
-
----
-
-## 13. **Future Enhancements**
-
-- Support for additional accounts    
-- Telegram bot integration for alerts
-
----
-
+This architecture is modular, robust, and directly implements the dual-condition logic you require, while incorporating the critical fixes and enhancements we've discussed.

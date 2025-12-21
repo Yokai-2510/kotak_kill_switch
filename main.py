@@ -8,7 +8,7 @@ def main():
 
     print("\n=== SYSTEM STARTUP ===")
     
-
+    
     user_ids = load_registry()
     if not user_ids:
         print("CRITICAL: No users found.")

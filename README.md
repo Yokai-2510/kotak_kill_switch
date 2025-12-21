@@ -1,8 +1,3 @@
-Here is the complete, professional **README.md**.
-
-It is structured to be the **single source of truth** for the client, covering everything from "What is this?" to "How do I get my API keys?".
-
-***
 
 # 🛡️ Kotak Neo Kill Switch & Risk Manager
 
