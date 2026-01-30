@@ -9,34 +9,29 @@
       "auto_square_off": true
     },
     "kill_history": {
-      "locked_date": "2025-12-20",
-      "timestamp": "2025-12-20 22:10:15",
+      "locked_date": "2026-01-29",
+      "timestamp": "2026-01-29 17:38:15",
       "verified": true
     },
     "monitoring": {
-      "poll_interval_seconds": 1,
-      "off_market_interval_seconds": 60,
-      "retry_strategy": {
-        "max_retries": 5,
-        "base_delay": 2,
-        "max_delay": 10
-      }
+      "poll_interval_seconds": 30,
+      "off_market_interval_seconds": 60
     },
     "logging": {
       "level": "INFO",
-      "file": "logs/USER_01_kill_switch.log",
       "wipe_on_start": true,
       "snapshot_interval": 30
     },
     "gmail": {
-      "timeout_seconds": 90,
+      "timeout_seconds": 120,
       "otp_subject": "OTP",
       "kill_subject": "Kill Switch Activated",
-      "enable_verification": false
+      "enable_verification": true
     },
     "web_automation": {
       "login_url": "https://neo.kotaksecurities.com/Login",
       "search_timeout": 30000,
+      "hard_close_browser": true,
       "browser": {
         "headless": false,
         "viewport": {
@@ -44,8 +39,7 @@
           "height": 768
         },
         "args": [
-          "--disable-blink-features=AutomationControlled",
-          "--disable-web-security"
+          "--disable-blink-features=AutomationControlled"
         ]
       },
       "flow_steps": [
@@ -96,225 +90,6 @@
             "Tab",
             "Enter"
           ],
-          "wait": 1.5
-        },
-        {
-          "id": 6,
-          "description": "Dismiss Gen Popup",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Tab",
-            "Tab",
-            "Enter"
-          ],
-          "wait": 1.0
-        },
-        {
-          "id": 7,
-          "description": "Open Menu",
-          "action": "click",
-          "enabled": true,
-          "coords": {
-            "x": 1285,
-            "y": 27
-          },
-          "wait": 1.2
-        },
-        {
-          "id": 8,
-          "description": "Open Acct Details",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Tab",
-            "Tab",
-            "Tab",
-            "Enter"
-          ],
-          "wait": 1.2
-        },
-        {
-          "id": 9,
-          "description": "Focus Canvas",
-          "action": "click",
-          "enabled": true,
-          "coords": {
-            "x": 499,
-            "y": 224
-          },
-          "wait": 0.5
-        },
-        {
-          "id": 10,
-          "description": "Scroll Down",
-          "action": "scroll",
-          "enabled": true,
-          "repeats": 10,
-          "wait": 0.5
-        },
-        {
-          "id": 11,
-          "description": "Click Kill Switch",
-          "action": "click",
-          "enabled": true,
-          "coords": {
-            "x": 480,
-            "y": 225
-          },
-          "wait": 1.0
-        },
-        {
-          "id": 12,
-          "description": "Uncheck All",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Tab",
-            "Tab",
-            "Enter"
-          ],
-          "wait": 1.0
-        },
-        {
-          "id": 13,
-          "description": "Click Disable Btn",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Tab",
-            "Tab",
-            "Tab",
-            "Tab",
-            "Tab",
-            "Tab",
-            "Tab",
-            "Enter"
-          ],
-          "wait": 1.0
-        },
-        {
-          "id": 14,
-          "description": "Click CONFIRM (Kill)",
-          "action": "click",
-          "enabled": true,
-          "coords": {
-            "x": 587,
-            "y": 615
-          },
-          "wait": 1.0
-        },
-        {
-          "id": 15,
-          "description": "Click CANCEL (Test)",
-          "action": "click",
-          "enabled": false,
-          "coords": {
-            "x": 667,
-            "y": 617
-          },
-          "wait": 1.0
-        }
-      ]
-    },
-    "notifications": {
-      "enable_telegram": false,
-      "notify_on_kill": true,
-      "notify_on_mtm_breach": true
-    }
-  },
-  "USER_02": {
-    "account_active": false,
-    "account_name": "Inactive Test",
-    "kill_switch": {
-      "enabled": false,
-      "mtm_limit": 5000,
-      "sell_order_exit_confirmation": true,
-      "auto_square_off": false
-    },
-    "kill_history": {
-      "locked_date": null,
-      "timestamp": null,
-      "verified": false
-    },
-    "monitoring": {
-      "poll_interval_seconds": 2,
-      "off_market_interval_seconds": 60
-    },
-    "logging": {
-      "level": "INFO",
-      "file": "logs/USER_02_kill_switch.log",
-      "wipe_on_start": true,
-      "snapshot_interval": 30
-    },
-    "gmail": {
-      "timeout_seconds": 120,
-      "otp_subject": "OTP",
-      "kill_subject": "Kill Switch Activated"
-    },
-    "web_automation": {
-      "login_url": "https://neo.kotaksecurities.com/Login",
-      "search_timeout": 20000,
-      "browser": {
-        "headless": true,
-        "viewport": {
-          "width": 1920,
-          "height": 1080
-        },
-        "args": [
-          "--disable-blink-features=AutomationControlled"
-        ]
-      },
-      "flow_steps": [
-        {
-          "id": 1,
-          "description": "Enter Mobile",
-          "action": "input",
-          "enabled": true,
-          "cred_key": "mobile_number",
-          "keys": [
-            "Enter"
-          ],
-          "wait": 1.2
-        },
-        {
-          "id": 2,
-          "description": "Enter Password",
-          "action": "input",
-          "enabled": true,
-          "cred_key": "login_password",
-          "keys": [
-            "Enter"
-          ],
-          "wait": 0.3
-        },
-        {
-          "id": 3,
-          "description": "Trigger OTP",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Enter"
-          ],
-          "wait": 1.5
-        },
-        {
-          "id": 4,
-          "description": "Process OTP",
-          "action": "otp",
-          "enabled": true,
-          "wait": 2.0
-        },
-        {
-          "id": 5,
-          "description": "Dismiss Risk Popup",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Tab",
-            "Tab",
-            "Enter"
-          ],
           "wait": 1.5,
           "optional": true
         },
@@ -424,29 +199,18 @@
             "y": 615
           },
           "wait": 1.0
-        },
-        {
-          "id": 15,
-          "description": "Click CANCEL (Test)",
-          "action": "click",
-          "enabled": false,
-          "coords": {
-            "x": 667,
-            "y": 617
-          },
-          "wait": 1.0
         }
       ]
     }
   },
-  "USER_03": {
+  "USER_02": {
     "account_active": false,
-    "account_name": "Experimental",
+    "account_name": "Inactive Test",
     "kill_switch": {
-      "enabled": false,
-      "mtm_limit": 10000,
-      "sell_order_exit_confirmation": false,
-      "auto_square_off": false
+      "enabled": true,
+      "mtm_limit": 5000.0,
+      "sell_order_exit_confirmation": true,
+      "auto_square_off": true
     },
     "kill_history": {
       "locked_date": null,
@@ -454,23 +218,24 @@
       "verified": false
     },
     "monitoring": {
-      "poll_interval_seconds": 2,
+      "poll_interval_seconds": 30,
       "off_market_interval_seconds": 60
     },
     "logging": {
       "level": "INFO",
-      "file": "logs/USER_03_kill_switch.log",
       "wipe_on_start": true,
       "snapshot_interval": 30
     },
     "gmail": {
       "timeout_seconds": 120,
       "otp_subject": "OTP",
-      "kill_subject": "Kill Switch Activated"
+      "kill_subject": "Kill Switch Activated",
+      "enable_verification": true
     },
     "web_automation": {
       "login_url": "https://neo.kotaksecurities.com/Login",
-      "search_timeout": 20000,
+      "search_timeout": 30000,
+      "hard_close_browser": false,
       "browser": {
         "headless": true,
         "viewport": {
@@ -506,151 +271,86 @@
         },
         {
           "id": 3,
-          "description": "Trigger OTP",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Enter"
-          ],
-          "wait": 1.5
-        },
-        {
-          "id": 4,
           "description": "Process OTP",
           "action": "otp",
           "enabled": true,
           "wait": 2.0
+        }
+      ]
+    }
+  },
+  "USER_03": {
+    "account_active": false,
+    "account_name": "Experimental",
+    "kill_switch": {
+      "enabled": false,
+      "mtm_limit": 20000.0,
+      "sell_order_exit_confirmation": false,
+      "auto_square_off": false
+    },
+    "kill_history": {
+      "locked_date": null,
+      "timestamp": null,
+      "verified": false
+    },
+    "monitoring": {
+      "poll_interval_seconds": 30,
+      "off_market_interval_seconds": 60
+    },
+    "logging": {
+      "level": "INFO",
+      "wipe_on_start": true,
+      "snapshot_interval": 30
+    },
+    "gmail": {
+      "timeout_seconds": 120,
+      "otp_subject": "OTP",
+      "kill_subject": "Kill Switch Activated",
+      "enable_verification": true
+    },
+    "web_automation": {
+      "login_url": "https://neo.kotaksecurities.com/Login",
+      "search_timeout": 30000,
+      "hard_close_browser": false,
+      "browser": {
+        "headless": true,
+        "viewport": {
+          "width": 1366,
+          "height": 768
         },
+        "args": [
+          "--disable-blink-features=AutomationControlled"
+        ]
+      },
+      "flow_steps": [
         {
-          "id": 5,
-          "description": "Dismiss Risk Popup",
-          "action": "keys",
+          "id": 1,
+          "description": "Enter Mobile",
+          "action": "input",
           "enabled": true,
+          "cred_key": "mobile_number",
           "keys": [
-            "Tab",
-            "Tab",
             "Enter"
           ],
-          "wait": 1.5,
-          "optional": true
-        },
-        {
-          "id": 6,
-          "description": "Dismiss Gen Popup",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Tab",
-            "Tab",
-            "Enter"
-          ],
-          "wait": 1.0,
-          "optional": true
-        },
-        {
-          "id": 7,
-          "description": "Open Menu",
-          "action": "click",
-          "enabled": true,
-          "coords": {
-            "x": 1285,
-            "y": 27
-          },
           "wait": 1.2
         },
         {
-          "id": 8,
-          "description": "Open Acct Details",
-          "action": "keys",
+          "id": 2,
+          "description": "Enter Password",
+          "action": "input",
           "enabled": true,
+          "cred_key": "login_password",
           "keys": [
-            "Tab",
-            "Tab",
-            "Tab",
             "Enter"
           ],
-          "wait": 1.2
+          "wait": 0.3
         },
         {
-          "id": 9,
-          "description": "Focus Canvas",
-          "action": "click",
+          "id": 3,
+          "description": "Process OTP",
+          "action": "otp",
           "enabled": true,
-          "coords": {
-            "x": 499,
-            "y": 224
-          },
-          "wait": 0.5
-        },
-        {
-          "id": 10,
-          "description": "Scroll Down",
-          "action": "scroll",
-          "enabled": true,
-          "repeats": 10,
-          "wait": 0.5
-        },
-        {
-          "id": 11,
-          "description": "Click Kill Switch",
-          "action": "click",
-          "enabled": true,
-          "coords": {
-            "x": 480,
-            "y": 225
-          },
-          "wait": 1.0
-        },
-        {
-          "id": 12,
-          "description": "Uncheck All",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Tab",
-            "Tab",
-            "Enter"
-          ],
-          "wait": 1.0
-        },
-        {
-          "id": 13,
-          "description": "Click Disable Btn",
-          "action": "keys",
-          "enabled": true,
-          "keys": [
-            "Tab",
-            "Tab",
-            "Tab",
-            "Tab",
-            "Tab",
-            "Tab",
-            "Tab",
-            "Enter"
-          ],
-          "wait": 1.0
-        },
-        {
-          "id": 14,
-          "description": "Click CONFIRM (Kill)",
-          "action": "click",
-          "enabled": true,
-          "coords": {
-            "x": 587,
-            "y": 615
-          },
-          "wait": 1.0
-        },
-        {
-          "id": 15,
-          "description": "Click CANCEL (Test)",
-          "action": "click",
-          "enabled": false,
-          "coords": {
-            "x": 667,
-            "y": 617
-          },
-          "wait": 1.0
+          "wait": 2.0
         }
       ]
     }

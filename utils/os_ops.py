@@ -1,18 +1,12 @@
 import platform
 import subprocess
 
-
-def kill_chrome() -> bool:
-    
+def kill_desktop_browser(log=None) -> bool:
     """
     Kill Chrome/Chromium on macOS / Windows / Linux.
-
-    Returns:
-        True  -> command executed successfully (chrome likely killed)
-        False -> chrome not running / unsupported OS / command failed
     """
-
     os_name = platform.system()
+    if log: log.warning(f"OS Browser Kill initiated for: {os_name}", tags=["OS", "KILL"])
 
     if os_name == "Darwin":
         cmd = ["killall", "Google Chrome"]
@@ -23,9 +17,8 @@ def kill_chrome() -> bool:
     else:
         return False
 
-    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return result.returncode == 0
-
-
-if __name__ == "__main__":
-    kill_chrome()
+    try:
+        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return result.returncode == 0
+    except:
+        return False

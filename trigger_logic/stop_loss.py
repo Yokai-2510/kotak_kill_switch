@@ -1,50 +1,62 @@
-def check_sl_status(universal_data):
+def check_sl_status(universal_data, order_update=None):
     """
-    Checks if a Stop-Loss order for a Short Position has been EXECUTED.
-    
-    Logic based on API Docs:
-    1. Order Type must be 'SL' or 'SL-M'.
-    2. Transaction Type must be 'B' (Buy covering Short).
-    3. Execution Check: 'filled_qty' must equal 'qty' (Strict Complete).
+    Evaluates Order execution to detect hit Stop-Losses.
+    Directly triggered by WebSocket updates for zero-latency reaction.
     """
     log = universal_data['sys']['log']
-    
-    with universal_data['sys']['lock']:
-        orders = universal_data['market']['orders']
-    
     sl_hit_detected = False
-    
+
+    # 1. READ DATA (Thread-Safe)
+    with universal_data['sys']['lock']:
+        # If we have a single incremental update from WebSocket, use it.
+        # Otherwise, scan the full order book (Consistency Sync fallback).
+        orders_to_check = [order_update] if order_update else universal_data['market']['orders']
+
     try:
-        for order in orders:
-            # 1. Filter for SL Orders (Kotak uses 'SL', 'SL-M')
-            o_type = order.get('type', '')
+        for order in orders_to_check:
+            # --- Field Normalization (Handles REST vs WebSocket differences) ---
+            # Kotak REST uses 'prcTp', WS uses 'type' or 'prcTp'
+            o_type = order.get('prcTp') or order.get('type') or ''
+            # Kotak REST uses 'trnsTp', WS uses 'transaction_type' or 'trnsTp'
+            txn = order.get('trnsTp') or order.get('transaction_type') or ''
+            # Kotak REST uses 'status', WS uses 'ordSt'
+            status = str(order.get('ordSt') or order.get('status') or '').upper()
+            
+            # --- 1. FILTER FOR SL ORDERS ---
             if o_type not in ['SL', 'SL-M']:
                 continue
             
-            # 2. Filter for Buy Orders (Exiting a Sell)
-            # Kotak API returns "B" for Buy
-            txn = order.get('transaction_type', '')
+            # --- 2. FILTER FOR EXIT ORDERS (Buy covering Short) ---
             if txn not in ['B', 'BUY']:
                 continue
 
-            # 3. Check Execution Status (Math based)
-            qty = order.get('qty', 0)
-            filled = order.get('filled_qty', 0)
-            status = order.get('status', '')
+            # --- 3. CHECK EXECUTION STATUS ---
+            qty = float(order.get('qty') or 0)
+            filled = float(order.get('fldQty') or order.get('filled_qty') or 0)
 
-            # STRICT RULE: Client requires "Completely Filled" only.
-            # We check if Filled Qty equals Total Qty.
-            # We also check if status is explicitly 'COMPLETE' or 'FILLED' as a backup.
-            is_complete = (qty > 0 and filled == qty) or status in ['COMPLETE', 'FILLED']
+            # Rule: Success if status is Traded/Complete OR if Qty perfectly matches Filled Qty
+            is_complete = (status in ['TRADED', 'COMPLETE', 'FILLED']) or (qty > 0 and filled == qty)
             
             if is_complete:
+                oid = order.get('nOrdNo') or order.get('order_id')
+                log.warning(f"STOP-LOSS HIT: Order {oid} is {status}", tags=["RISK", "SL_HIT"])
                 sl_hit_detected = True
-                oid = order.get('order_id')
-                log.warning(f"Short Leg SL Hit! (Order {oid}: {int(filled)}/{int(qty)} filled)", tags=["RISK", "SL_HIT"])
                 break
             
-        with universal_data['sys']['lock']:
-            universal_data['risk']['sl_hit_status'] = sl_hit_detected
+        # 2. UPDATE RISK STATE
+        if sl_hit_detected:
+            with universal_data['sys']['lock']:
+                universal_data['risk']['sl_hit_status'] = True
+                
+                # --- DUAL TRIGGER EVALUATION ---
+                # If SL is hit, we immediately check if MTM is already below limit.
+                # If yes, we set the trigger signal for the Kill Switch Service.
+                mtm_now = universal_data['risk']['mtm_current']
+                mtm_limit = universal_data['risk']['mtm_limit']
+                
+                if mtm_now <= mtm_limit:
+                    log.critical(f"DUAL TRIGGER MET: MTM ({mtm_now}) <= Limit ({mtm_limit}) + SL Hit!", tags=["RISK", "KILL"])
+                    universal_data['signals']['trigger_kill'] = True
 
     except Exception as e:
-        log.error(f"Error checking SL status: {e}", tags=["RISK"])
+        log.error(f"Error in Stop-Loss monitoring: {e}", tags=["RISK", "ERR"])

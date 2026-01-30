@@ -9,6 +9,7 @@ from gui.theme import Theme
 # =========================================================
 
 class AccountSettingsForm(ctk.CTkScrollableFrame):
+    
     def __init__(self, parent, engine):
         super().__init__(parent, fg_color="transparent")
         self.engine = engine
